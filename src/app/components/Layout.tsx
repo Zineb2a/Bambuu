@@ -1,14 +1,15 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link } from "react-router";
-import { Plus, User } from "lucide-react";
+import { Moon, Plus, Sun, User } from "lucide-react";
 import Navigation from "./Navigation";
 import NotificationsPanel from "./NotificationsPanel";
 import AddTransactionModal from "./AddTransactionModal";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import { createTransaction } from "../lib/transactions";
-import { getUserProfile, getUserSettings } from "../lib/settings";
+import { getUserProfile, getUserSettings, updateUserSettings } from "../lib/settings";
 import { BRAND_LOGO_SRC } from "../lib/branding";
+import type { UserSettings } from "../types/settings";
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,11 +21,15 @@ export default function Layout({ children }: LayoutProps) {
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
+  const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
 
   useEffect(() => {
     if (!user) {
       setProfilePhoto(null);
       setDefaultCurrency("USD");
+      setUserSettings(null);
+      setDarkMode(false);
       return;
     }
 
@@ -39,11 +44,15 @@ export default function Layout({ children }: LayoutProps) {
         if (isMounted) {
           setProfilePhoto(profile.avatarUrl);
           setDefaultCurrency(settings.currency);
+          setUserSettings(settings);
+          setDarkMode(settings.darkMode);
         }
       } catch {
         if (isMounted) {
           setProfilePhoto(null);
           setDefaultCurrency("USD");
+          setUserSettings(null);
+          setDarkMode(false);
         }
       }
     };
@@ -61,6 +70,10 @@ export default function Layout({ children }: LayoutProps) {
       window.removeEventListener("profileUpdated", handleProfileUpdated);
     };
   }, [user]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
 
   const handleAddTransaction = async (transaction: {
     name: string;
@@ -81,6 +94,27 @@ export default function Layout({ children }: LayoutProps) {
     window.dispatchEvent(new Event("transactionsChanged"));
   };
 
+  const handleToggleDarkMode = async () => {
+    if (!user || !userSettings) {
+      return;
+    }
+
+    const nextDarkMode = !darkMode;
+    setDarkMode(nextDarkMode);
+
+    try {
+      const saved = await updateUserSettings(user.id, {
+        ...userSettings,
+        darkMode: nextDarkMode,
+      });
+      setUserSettings(saved);
+      setDarkMode(saved.darkMode);
+      window.dispatchEvent(new Event("settingsUpdated"));
+    } catch {
+      setDarkMode(userSettings.darkMode);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header - Fixed at top */}
@@ -97,8 +131,16 @@ export default function Layout({ children }: LayoutProps) {
             </div>
             <h1 className="text-2xl font-semibold text-white">BAMBUU</h1>
           </Link>
-          <div className="flex items-center gap-3 w-32 justify-end">
+          <div className="flex items-center gap-3 w-40 justify-end">
             <NotificationsPanel />
+            <button
+              type="button"
+              onClick={handleToggleDarkMode}
+              aria-label={t("settingsPage.darkMode")}
+              className="rounded-lg bg-white/20 p-2 hover:bg-white/30 transition-colors"
+            >
+              {darkMode ? <Sun className="size-5 text-white" /> : <Moon className="size-5 text-white" />}
+            </button>
             <Link to="/settings" className="flex-shrink-0">
               {profilePhoto ? (
                 <img
