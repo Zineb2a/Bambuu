@@ -1,0 +1,195 @@
+create extension if not exists pgcrypto;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users (id) on delete cascade,
+  full_name text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.transactions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  amount numeric(12,2) not null check (amount >= 0),
+  category text not null,
+  occurred_on date not null,
+  type text not null check (type in ('income', 'expense')),
+  is_recurring boolean not null default false,
+  recurring_frequency text check (
+    recurring_frequency in ('daily', 'weekly', 'monthly', 'yearly')
+  ),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.savings_goals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  target_amount numeric(12,2) not null check (target_amount >= 0),
+  current_amount numeric(12,2) not null default 0 check (current_amount >= 0),
+  emoji text not null default '💰',
+  pinned boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.budget_categories (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  name text not null,
+  budget numeric(12,2) not null check (budget >= 0),
+  icon text not null default 'shopping',
+  color text not null default '#95d5b2',
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  emoji text not null default '📱',
+  name text not null,
+  category text not null,
+  monthly_cost numeric(12,2) not null check (monthly_cost >= 0),
+  renewal_date date not null,
+  has_student_discount boolean not null default false,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, full_name)
+  values (new.id, new.raw_user_meta_data ->> 'full_name')
+  on conflict (id) do update
+    set full_name = excluded.full_name,
+        updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
+
+alter table public.profiles enable row level security;
+alter table public.transactions enable row level security;
+alter table public.savings_goals enable row level security;
+alter table public.budget_categories enable row level security;
+alter table public.subscriptions enable row level security;
+
+drop policy if exists "profiles_select_own" on public.profiles;
+create policy "profiles_select_own"
+  on public.profiles
+  for select
+  using (auth.uid() = id);
+
+drop policy if exists "profiles_update_own" on public.profiles;
+create policy "profiles_update_own"
+  on public.profiles
+  for update
+  using (auth.uid() = id);
+
+drop policy if exists "transactions_select_own" on public.transactions;
+create policy "transactions_select_own"
+  on public.transactions
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "transactions_insert_own" on public.transactions;
+create policy "transactions_insert_own"
+  on public.transactions
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "transactions_update_own" on public.transactions;
+create policy "transactions_update_own"
+  on public.transactions
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "transactions_delete_own" on public.transactions;
+create policy "transactions_delete_own"
+  on public.transactions
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "savings_goals_select_own" on public.savings_goals;
+create policy "savings_goals_select_own"
+  on public.savings_goals
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "savings_goals_insert_own" on public.savings_goals;
+create policy "savings_goals_insert_own"
+  on public.savings_goals
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "savings_goals_update_own" on public.savings_goals;
+create policy "savings_goals_update_own"
+  on public.savings_goals
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "savings_goals_delete_own" on public.savings_goals;
+create policy "savings_goals_delete_own"
+  on public.savings_goals
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "budget_categories_select_own" on public.budget_categories;
+create policy "budget_categories_select_own"
+  on public.budget_categories
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "budget_categories_insert_own" on public.budget_categories;
+create policy "budget_categories_insert_own"
+  on public.budget_categories
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "budget_categories_update_own" on public.budget_categories;
+create policy "budget_categories_update_own"
+  on public.budget_categories
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "budget_categories_delete_own" on public.budget_categories;
+create policy "budget_categories_delete_own"
+  on public.budget_categories
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "subscriptions_select_own" on public.subscriptions;
+create policy "subscriptions_select_own"
+  on public.subscriptions
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "subscriptions_insert_own" on public.subscriptions;
+create policy "subscriptions_insert_own"
+  on public.subscriptions
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "subscriptions_update_own" on public.subscriptions;
+create policy "subscriptions_update_own"
+  on public.subscriptions
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "subscriptions_delete_own" on public.subscriptions;
+create policy "subscriptions_delete_own"
+  on public.subscriptions
+  for delete
+  using (auth.uid() = user_id);

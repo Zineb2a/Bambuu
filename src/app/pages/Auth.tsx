@@ -1,26 +1,75 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../providers/AuthProvider";
 
 export default function Auth() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Mock authentication - in real app, this would call an API
-    localStorage.setItem("isAuthenticated", "true");
-    if (!isLogin) {
-      localStorage.setItem("userName", formData.name);
-      localStorage.setItem("userEmail", formData.email);
+  useEffect(() => {
+    if (user) {
+      navigate("/", { replace: true });
     }
-    navigate("/");
+  }, [navigate, user]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setErrorMessage("");
+    setStatusMessage("");
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        navigate("/", { replace: true });
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+          },
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.session) {
+        navigate("/", { replace: true });
+      } else {
+        setStatusMessage("Account created. Check your email to confirm your address before signing in.");
+        setIsLogin(true);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Authentication failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -40,6 +89,16 @@ export default function Auth() {
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {errorMessage ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {errorMessage}
+              </div>
+            ) : null}
+            {statusMessage ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+                {statusMessage}
+              </div>
+            ) : null}
             {!isLogin && (
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
@@ -98,15 +157,20 @@ export default function Auth() {
 
             <button
               type="submit"
+              disabled={isSubmitting}
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity mt-6"
             >
-              {isLogin ? "Sign In" : "Create Account"}
+              {isSubmitting ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
             </button>
           </form>
 
           <div className="mt-6 text-center">
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={() => {
+                setIsLogin(!isLogin);
+                setErrorMessage("");
+                setStatusMessage("");
+              }}
               className="text-sm text-muted-foreground hover:text-primary transition-colors"
             >
               {isLogin ? (

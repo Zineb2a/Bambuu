@@ -21,9 +21,12 @@ import {
   Calendar
 } from "lucide-react";
 import Layout from "../components/Layout";
+import { supabase } from "../../lib/supabase";
+import { useAuth } from "../providers/AuthProvider";
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [profilePhoto, setProfilePhoto] = useState<string | null>(
     localStorage.getItem("userPhoto") || null
   );
@@ -31,7 +34,7 @@ export default function Settings() {
   // Split name into first and last
   const [firstName, setFirstName] = useState(localStorage.getItem("userFirstName") || "");
   const [lastName, setLastName] = useState(localStorage.getItem("userLastName") || "");
-  const [email, setEmail] = useState(localStorage.getItem("userEmail") || "");
+  const [email, setEmail] = useState(user?.email || localStorage.getItem("userEmail") || "");
   
   const [language, setLanguage] = useState(localStorage.getItem("userLanguage") || "English");
   const [currency, setCurrency] = useState(localStorage.getItem("userCurrency") || "USD");
@@ -188,8 +191,9 @@ export default function Settings() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("isAuthenticated");
-    navigate("/auth");
+    supabase.auth.signOut().finally(() => {
+      navigate("/auth", { replace: true });
+    });
   };
 
   const handleAddCard = () => {

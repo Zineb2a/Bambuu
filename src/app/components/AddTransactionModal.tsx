@@ -9,12 +9,12 @@ interface AddTransactionModalProps {
     amount: number;
     category: string;
     type: 'income' | 'expense';
-    date: string;
+    occurredOn: string;
     currency?: string;
     originalAmount?: number;
     isRecurring?: boolean;
     recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  }) => void;
+  }) => Promise<void>;
   defaultCurrency?: string;
   exchangeRates?: { [key: string]: number };
 }
@@ -28,6 +28,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
   const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const expenseCategories = ['Food', 'Books', 'Transport', 'Entertainment', 'Shopping', 'Other'];
   const incomeCategories = ['Job', 'Scholarship', 'Allowance', 'Gift', 'Other'];
@@ -70,7 +71,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
     return convertedValue.toFixed(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name || !amount || !category) {
@@ -78,27 +79,32 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
       return;
     }
 
-    onAddTransaction({
-      name,
-      amount: parseFloat(amount),
-      category,
-      type,
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      currency: selectedCurrency,
-      originalAmount: amount ? parseFloat(amount) : undefined,
-      isRecurring,
-      recurringFrequency
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setName('');
-    setAmount('');
-    setCategory('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setSelectedCurrency(defaultCurrency);
-    setIsRecurring(false);
-    setRecurringFrequency('monthly');
-    onClose();
+    try {
+      await onAddTransaction({
+        name,
+        amount: parseFloat(amount),
+        category,
+        type,
+        occurredOn: date,
+        currency: selectedCurrency,
+        originalAmount: amount ? parseFloat(amount) : undefined,
+        isRecurring,
+        recurringFrequency
+      });
+
+      setName('');
+      setAmount('');
+      setCategory('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setSelectedCurrency(defaultCurrency);
+      setIsRecurring(false);
+      setRecurringFrequency('monthly');
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -294,13 +300,16 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           {/* Submit Button */}
           <button
             type="submit"
-            className={`w-full py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${
-              type === 'expense'
+            disabled={isSubmitting}
+            className={`w-full py-3 rounded-lg transition-all shadow-md ${
+              isSubmitting
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                : type === 'expense'
                 ? 'bg-destructive text-destructive-foreground hover:opacity-90'
                 : 'bg-primary text-primary-foreground hover:opacity-90'
             }`}
           >
-            Add {type === 'expense' ? 'Expense' : 'Income'}
+            {isSubmitting ? 'Saving...' : `Add ${type === 'expense' ? 'Expense' : 'Income'}`}
           </button>
         </form>
       </div>

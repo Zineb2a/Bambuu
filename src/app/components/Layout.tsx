@@ -1,26 +1,18 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link } from "react-router";
-import { Plus, Bell, User } from "lucide-react";
+import { Plus, User } from "lucide-react";
 import Navigation from "./Navigation";
 import NotificationsPanel from "./NotificationsPanel";
 import AddTransactionModal from "./AddTransactionModal";
+import { useAuth } from "../providers/AuthProvider";
+import { createTransaction } from "../lib/transactions";
 
 interface LayoutProps {
   children: ReactNode;
-  onAddTransaction?: (transaction: {
-    name: string;
-    amount: number;
-    category: string;
-    type: 'income' | 'expense';
-    date: string;
-    currency?: string;
-    originalAmount?: number;
-    isRecurring?: boolean;
-    recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  }) => void;
 }
 
-export default function Layout({ children, onAddTransaction }: LayoutProps) {
+export default function Layout({ children }: LayoutProps) {
+  const { user } = useAuth();
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
@@ -46,12 +38,23 @@ export default function Layout({ children, onAddTransaction }: LayoutProps) {
     };
   }, []);
 
-  const handleAddTransaction = (transaction: any) => {
-    if (onAddTransaction) {
-      onAddTransaction(transaction);
+  const handleAddTransaction = async (transaction: {
+    name: string;
+    amount: number;
+    category: string;
+    type: 'income' | 'expense';
+    occurredOn: string;
+    currency?: string;
+    originalAmount?: number;
+    isRecurring?: boolean;
+    recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  }) => {
+    if (!user) {
+      return;
     }
-    // You can also emit a custom event here for pages that need to listen
-    window.dispatchEvent(new CustomEvent('transactionAdded', { detail: transaction }));
+
+    await createTransaction(user.id, transaction);
+    window.dispatchEvent(new Event("transactionsChanged"));
   };
 
   return (

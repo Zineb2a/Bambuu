@@ -1,0 +1,22 @@
+export interface Transaction {
+  id: string;
+  userId: string;
+  name: string;
+  amount: number;
+  category: string;
+  occurredOn: string;
+  type: "income" | "expense";
+  isRecurring: boolean;
+  recurringFrequency: "daily" | "weekly" | "monthly" | "yearly" | null;
+  createdAt: string;
+}
+
+export interface TransactionInput {
+  name: string;
+  amount: number;
+  category: string;
+  occurredOn: string;
+  type: "income" | "expense";
+  isRecurring?: boolean;
+  recurringFrequency?: "daily" | "weekly" | "monthly" | "yearly";
+}

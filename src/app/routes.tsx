@@ -10,17 +10,32 @@ import Investments from "./pages/Investments";
 import Subscriptions from "./pages/Subscriptions";
 import Auth from "./pages/Auth";
 import Settings from "./pages/Settings";
+import { useAuth } from "./providers/AuthProvider";
 
-// Auth check wrapper
 const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const isAuthenticated = localStorage.getItem("isAuthenticated") === "true";
-  return isAuthenticated ? children : <Navigate to="/auth" replace />;
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  return user ? children : <Navigate to="/auth" replace />;
+};
+
+const AuthRoute = () => {
+  const { loading, user } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen bg-background" />;
+  }
+
+  return user ? <Navigate to="/" replace /> : <Auth />;
 };
 
 export const router = createBrowserRouter([
   {
     path: "/auth",
-    Component: Auth,
+    Component: AuthRoute,
   },
   {
     path: "/",
