@@ -17,8 +17,8 @@ export default function Navigation() {
   ];
 
   return (
-    <nav className="bg-card border-b border-border px-6 py-3 sticky top-[72px] z-40 shadow-sm">
-      <div className="max-w-7xl mx-auto flex items-center justify-around">
+    <nav className="fixed inset-x-0 top-28 z-40 h-16 bg-card border-b border-border px-6 shadow-sm">
+      <div className="max-w-7xl mx-auto flex h-full items-center justify-around">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.to;

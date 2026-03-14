@@ -84,8 +84,8 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Header - Fixed at top */}
-      <header className="sticky top-0 z-50 bg-primary text-primary-foreground px-6 py-6 shadow-md">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="fixed inset-x-0 top-0 z-50 h-28 bg-primary text-primary-foreground px-6 shadow-md">
+        <div className="max-w-7xl mx-auto flex h-full items-center justify-between">
           <div className="w-32"></div> {/* Spacer for balance */}
           <Link to="/" className="flex items-center gap-4">
             <div className="h-16 w-16 flex items-center justify-center">
@@ -120,7 +120,9 @@ export default function Layout({ children }: LayoutProps) {
       <Navigation />
 
       {/* Main Content */}
-      {children}
+      <main className="pt-[11.5rem]">
+        {children}
+      </main>
 
       {user ? (
         <button
