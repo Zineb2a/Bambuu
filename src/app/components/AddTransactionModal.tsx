@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, DollarSign, Calendar, Tag, FileText, Repeat, Globe } from "lucide-react";
+import { convertCurrency, EXCHANGE_RATES } from "../lib/currency";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -9,12 +10,12 @@ interface AddTransactionModalProps {
     amount: number;
     category: string;
     type: 'income' | 'expense';
-    date: string;
+    occurredOn: string;
     currency?: string;
     originalAmount?: number;
     isRecurring?: boolean;
     recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  }) => void;
+  }) => Promise<void>;
   defaultCurrency?: string;
   exchangeRates?: { [key: string]: number };
 }
@@ -28,20 +29,17 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
   const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setSelectedCurrency(defaultCurrency);
+  }, [defaultCurrency]);
 
   const expenseCategories = ['Food', 'Books', 'Transport', 'Entertainment', 'Shopping', 'Other'];
   const incomeCategories = ['Job', 'Scholarship', 'Allowance', 'Gift', 'Other'];
 
   // Default exchange rates if none provided
-  const rates = exchangeRates || {
-    'USD': 1,
-    'EUR': 0.92,
-    'GBP': 0.79,
-    'CAD': 1.35,
-    'AUD': 1.52,
-    'JPY': 149.50,
-    'CNY': 7.24,
-  };
+  const rates = exchangeRates || EXCHANGE_RATES;
 
   const currencySymbols: { [key: string]: string } = {
     'USD': '$',
@@ -55,12 +53,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
 
   // Convert amount from selected currency to default currency
   const convertToDefaultCurrency = (value: number, fromCurrency: string): number => {
-    if (fromCurrency === defaultCurrency) return value;
-    
-    // Convert to USD first (base currency)
-    const inUSD = value / rates[fromCurrency];
-    // Then convert to default currency
-    return inUSD * rates[defaultCurrency];
+    return convertCurrency(value, fromCurrency, defaultCurrency);
   };
 
   // Calculate converted amount for display
@@ -70,7 +63,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
     return convertedValue.toFixed(2);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!name || !amount || !category) {
@@ -78,27 +71,35 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
       return;
     }
 
-    onAddTransaction({
-      name,
-      amount: parseFloat(amount),
-      category,
-      type,
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      currency: selectedCurrency,
-      originalAmount: amount ? parseFloat(amount) : undefined,
-      isRecurring,
-      recurringFrequency
-    });
+    setIsSubmitting(true);
 
-    // Reset form
-    setName('');
-    setAmount('');
-    setCategory('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setSelectedCurrency(defaultCurrency);
-    setIsRecurring(false);
-    setRecurringFrequency('monthly');
-    onClose();
+    try {
+      const parsedAmount = parseFloat(amount);
+      const convertedAmount = convertToDefaultCurrency(parsedAmount, selectedCurrency);
+
+      await onAddTransaction({
+        name,
+        amount: convertedAmount,
+        category,
+        type,
+        occurredOn: date,
+        currency: selectedCurrency,
+        originalAmount: parsedAmount,
+        isRecurring,
+        recurringFrequency
+      });
+
+      setName('');
+      setAmount('');
+      setCategory('');
+      setDate(new Date().toISOString().split('T')[0]);
+      setSelectedCurrency(defaultCurrency);
+      setIsRecurring(false);
+      setRecurringFrequency('monthly');
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -294,13 +295,16 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           {/* Submit Button */}
           <button
             type="submit"
-            className={`w-full py-3 rounded-lg transition-all shadow-md hover:shadow-lg ${
-              type === 'expense'
+            disabled={isSubmitting}
+            className={`w-full py-3 rounded-lg transition-all shadow-md ${
+              isSubmitting
+                ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                : type === 'expense'
                 ? 'bg-destructive text-destructive-foreground hover:opacity-90'
                 : 'bg-primary text-primary-foreground hover:opacity-90'
             }`}
           >
-            Add {type === 'expense' ? 'Expense' : 'Income'}
+            {isSubmitting ? 'Saving...' : `Add ${type === 'expense' ? 'Expense' : 'Income'}`}
           </button>
         </form>
       </div>

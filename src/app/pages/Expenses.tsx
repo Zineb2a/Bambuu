@@ -1,34 +1,74 @@
-import { useState } from "react";
-import { Link } from "react-router";
-import { ArrowLeft, Filter, Search, ShoppingCart, Utensils, Bus, Film, Book } from "lucide-react";
-
-interface Expense {
-  id: string;
-  name: string;
-  amount: number;
-  category: string;
-  date: string;
-}
+import { useEffect, useMemo, useState } from "react";
+import { Filter, Search, ShoppingCart, Utensils, Bus, Film, Book } from "lucide-react";
+import Layout from "../components/Layout";
+import { useUserCurrency } from "../hooks/useUserCurrency";
+import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
+import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
+import { useAuth } from "../providers/AuthProvider";
+import type { Transaction } from "../types/transactions";
 
 export default function Expenses() {
-  const [expenses] = useState<Expense[]>([
-    { id: '1', name: 'Textbooks', amount: 150, category: 'Books', date: 'Mar 3, 2026' },
-    { id: '2', name: 'Groceries', amount: 85.50, category: 'Food', date: 'Mar 5, 2026' },
-    { id: '3', name: 'Bus Pass', amount: 50, category: 'Transport', date: 'Mar 7, 2026' },
-    { id: '4', name: 'Coffee', amount: 24, category: 'Entertainment', date: 'Mar 8, 2026' },
-    { id: '5', name: 'Lunch', amount: 40, category: 'Food', date: 'Mar 10, 2026' },
-    { id: '6', name: 'Movie Night', amount: 200, category: 'Entertainment', date: 'Mar 12, 2026' },
-  ]);
+  const { user } = useAuth();
+  const currency = useUserCurrency();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadExpenses = async () => {
+      setIsLoading(true);
+      try {
+        const data = await listTransactions(user.id);
+        if (isMounted) {
+          setTransactions(data.filter((transaction) => transaction.type === "expense"));
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadExpenses();
+    window.addEventListener("transactionsChanged", loadExpenses);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("transactionsChanged", loadExpenses);
+    };
+  }, [user]);
+
+  const filteredExpenses = useMemo(
+    () =>
+      transactions.filter((expense) =>
+        expense.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        expense.category.toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [searchQuery, transactions],
+  );
+
+  const totalExpenses = filteredExpenses.reduce(
+    (sum, expense) => sum + getTransactionAmountInCurrency(expense, currency),
+    0,
+  );
 
   const getCategoryIcon = (category: string) => {
     switch (category.toLowerCase()) {
-      case 'food':
+      case "food":
         return <Utensils className="size-4" />;
-      case 'books':
+      case "books":
         return <Book className="size-4" />;
-      case 'transport':
+      case "transport":
         return <Bus className="size-4" />;
-      case 'entertainment':
+      case "entertainment":
         return <Film className="size-4" />;
       default:
         return <ShoppingCart className="size-4" />;
@@ -36,58 +76,62 @@ export default function Expenses() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <header className="bg-primary text-primary-foreground px-6 py-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-4">
-            <Link to="/" className="hover:opacity-80">
-              <ArrowLeft className="size-6" />
-            </Link>
-            <h1 className="text-white">Expenses</h1>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-white/60" />
-            <input
-              type="text"
-              placeholder="Search expenses..."
-              className="w-full bg-white/20 text-white placeholder:text-white/60 pl-11 pr-4 py-3 rounded-lg outline-none focus:bg-white/30 transition-colors"
-            />
-          </div>
-        </div>
-      </header>
-
+    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="relative mb-6">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search expenses..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-input-background pl-11 pr-4 py-3 rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+          />
+        </div>
+
         <div className="flex items-center justify-between mb-6">
           <div>
             <div className="text-sm text-muted-foreground">Total Expenses</div>
-            <div className="text-3xl text-foreground">$549.50</div>
+            <div className="text-3xl text-foreground">{formatCurrency(totalExpenses, currency)}</div>
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-accent transition-colors">
+          <div className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg">
             <Filter className="size-4" />
-            Filter
-          </button>
+            {filteredExpenses.length} items
+          </div>
         </div>
 
         <div className="space-y-3">
-          {expenses.map((expense) => (
-            <div key={expense.id} className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-accent-foreground">
-                    {getCategoryIcon(expense.category)}
-                  </div>
-                  <div>
-                    <div className="font-medium">{expense.name}</div>
-                    <div className="text-sm text-muted-foreground">{expense.category}</div>
-                    <div className="text-xs text-muted-foreground mt-1">{expense.date}</div>
-                  </div>
-                </div>
-                <div className="text-lg">-${expense.amount.toFixed(2)}</div>
-              </div>
+          {isLoading ? (
+            <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
+              Loading expenses...
             </div>
-          ))}
+          ) : filteredExpenses.length === 0 ? (
+            <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
+              No expenses found.
+            </div>
+          ) : (
+            filteredExpenses.map((expense) => (
+              <div key={expense.id} className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-accent rounded-full flex items-center justify-center text-accent-foreground">
+                      {getCategoryIcon(expense.category)}
+                    </div>
+                    <div>
+                      <div className="font-medium">{expense.name}</div>
+                      <div className="text-sm text-muted-foreground">{expense.category}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {formatTransactionDate(expense.occurredOn)} • Paid in {formatCurrencyWithCode(expense.originalAmount, expense.currency)}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-lg">-{formatCurrency(getTransactionAmountInCurrency(expense, currency), currency)}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }

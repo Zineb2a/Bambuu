@@ -1,71 +1,268 @@
-import { useState } from "react";
-import { Bell, X, AlertCircle, TrendingUp, Target, Info, CheckCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  X,
+  AlertCircle,
+  Info,
+  CheckCircle,
+} from "lucide-react";
+import { differenceInCalendarDays, endOfMonth, formatDistanceToNow, isWithinInterval, startOfMonth, subMonths } from "date-fns";
+import { formatCurrency } from "../lib/currency";
+import { useAuth } from "../providers/AuthProvider";
+import {
+  getBudgetAmountInCurrency,
+  getSubscriptionAmountInCurrency,
+  listBudgetCategories,
+  listSavingsGoals,
+  listSubscriptions,
+} from "../lib/finance";
+import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
+import { getUserSettings } from "../lib/settings";
+import type { BudgetCategory, SavingsGoal, Subscription } from "../types/finance";
+import type { UserSettings } from "../types/settings";
+import type { Transaction } from "../types/transactions";
 
 interface Notification {
   id: string;
-  type: 'info' | 'warning' | 'success' | 'alert';
+  type: "info" | "warning" | "success" | "alert";
   title: string;
   message: string;
   time: string;
   read: boolean;
 }
 
-export default function NotificationsPanel() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: '1',
-      type: 'success',
-      title: 'Goal Progress!',
-      message: 'You\'re now 37.5% towards your New Laptop goal! Keep it up! 🐼',
-      time: '2 hours ago',
-      read: false
-    },
-    {
-      id: '2',
-      type: 'warning',
-      title: 'Budget Alert',
-      message: 'You\'ve spent 80% of your Entertainment budget this month.',
-      time: '5 hours ago',
-      read: false
-    },
-    {
-      id: '3',
-      type: 'info',
-      title: 'Income Received',
-      message: 'Your scholarship payment of $600 has been added.',
-      time: '1 day ago',
-      read: true
-    },
-    {
-      id: '4',
-      type: 'alert',
-      title: 'Upcoming Payment',
-      message: 'Your bus pass renewal is due in 3 days.',
-      time: '1 day ago',
-      read: true
-    },
-    {
-      id: '5',
-      type: 'success',
-      title: 'Money Saved!',
-      message: 'Great job! You spent 15% less this month than last month.',
-      time: '2 days ago',
-      read: true
-    }
-  ]);
+const defaultSettings: UserSettings = {
+  userId: "",
+  language: "English",
+  currency: "USD",
+  dateFormat: "MM/DD/YYYY",
+  darkMode: false,
+  budgetAlerts: true,
+  subscriptionReminders: true,
+  weeklySummary: true,
+  savingsMilestones: true,
+};
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+export default function NotificationsPanel() {
+  const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
+  const [readIds, setReadIds] = useState<string[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!user) {
+      setTransactions([]);
+      setBudgetCategories([]);
+      setGoals([]);
+      setSubscriptions([]);
+      setSettings(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadData = async () => {
+      try {
+        const [transactionData, categoryData, goalData, subscriptionData, settingsData] = await Promise.all([
+          listTransactions(user.id),
+          listBudgetCategories(user.id),
+          listSavingsGoals(user.id),
+          listSubscriptions(user.id),
+          getUserSettings(user.id),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setTransactions(transactionData);
+        setBudgetCategories(categoryData);
+        setGoals(goalData);
+        setSubscriptions(subscriptionData);
+        setSettings(settingsData);
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
+        setTransactions([]);
+        setBudgetCategories([]);
+        setGoals([]);
+        setSubscriptions([]);
+        setSettings({ ...defaultSettings, userId: user.id });
+      }
+    };
+
+    loadData();
+
+    const reload = () => {
+      loadData();
+    };
+
+    window.addEventListener("transactionsChanged", reload);
+    window.addEventListener("financialDataChanged", reload);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener("transactionsChanged", reload);
+      window.removeEventListener("financialDataChanged", reload);
+    };
+  }, [user]);
+
+  const derivedNotifications = useMemo(() => {
+    if (!settings) {
+      return [] as Notification[];
+    }
+
+    const items: Notification[] = [];
+    const now = new Date();
+
+    const currentMonthExpenses = transactions.filter(
+      (transaction) =>
+        transaction.type === "expense" &&
+        isWithinInterval(parseTransactionDate(transaction.occurredOn), {
+          start: startOfMonth(now),
+          end: endOfMonth(now),
+        }),
+    );
+
+    if (settings.savingsMilestones) {
+      const pinnedGoal = goals.find((goal) => goal.pinned) ?? goals[0];
+      if (pinnedGoal) {
+        const progress = pinnedGoal.targetAmount > 0 ? (pinnedGoal.currentAmount / pinnedGoal.targetAmount) * 100 : 0;
+        items.push({
+          id: `goal-${pinnedGoal.id}`,
+          type: progress >= 100 ? "success" : "info",
+          title: progress >= 100 ? "Goal Completed" : "Goal Progress",
+          message:
+            progress >= 100
+              ? `${pinnedGoal.name} is fully funded.`
+              : `You're now ${progress.toFixed(1)}% toward ${pinnedGoal.name}.`,
+          time: formatDistanceToNow(new Date(pinnedGoal.createdAt), { addSuffix: true }),
+          read: false,
+        });
+      }
+    }
+
+    if (settings.budgetAlerts) {
+      budgetCategories.forEach((category) => {
+        const displayBudget = getBudgetAmountInCurrency(category, settings.currency);
+        const spent = currentMonthExpenses
+          .filter((transaction) => transaction.category.toLowerCase() === category.name.toLowerCase())
+          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+
+        if (displayBudget > 0 && spent / displayBudget >= 0.8) {
+          items.push({
+            id: `budget-${category.id}`,
+            type: spent > displayBudget ? "alert" : "warning",
+            title: spent > displayBudget ? "Over Budget" : "Budget Alert",
+            message:
+              spent > displayBudget
+                ? `${category.name} is over budget by ${formatCurrency(spent - displayBudget, settings.currency)}.`
+                : `${category.name} has used ${((spent / displayBudget) * 100).toFixed(0)}% of its monthly budget.`,
+            time: "this month",
+            read: false,
+          });
+        }
+      });
+    }
+
+    if (settings.subscriptionReminders) {
+      subscriptions.forEach((subscription) => {
+        const daysUntilRenewal = differenceInCalendarDays(new Date(subscription.renewalDate), now);
+        if (daysUntilRenewal >= 0 && daysUntilRenewal <= 3) {
+          items.push({
+            id: `subscription-${subscription.id}`,
+            type: "alert",
+            title: "Upcoming Renewal",
+            message: `${subscription.name} (${formatCurrency(getSubscriptionAmountInCurrency(subscription, settings.currency), settings.currency)}) renews in ${daysUntilRenewal} day${daysUntilRenewal === 1 ? "" : "s"}.`,
+            time: `renews ${formatDistanceToNow(new Date(subscription.renewalDate), { addSuffix: true })}`,
+            read: false,
+          });
+        }
+      });
+    }
+
+    if (settings.weeklySummary) {
+      const thisMonth = transactions.filter((transaction) =>
+        isWithinInterval(parseTransactionDate(transaction.occurredOn), {
+          start: startOfMonth(now),
+          end: endOfMonth(now),
+        }),
+      );
+      const thisMonthIncome = thisMonth
+        .filter((transaction) => transaction.type === "income")
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+      const thisMonthExpenses = thisMonth
+        .filter((transaction) => transaction.type === "expense")
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+
+      const previousMonthInterval = {
+        start: startOfMonth(subMonths(now, 1)),
+        end: endOfMonth(subMonths(now, 1)),
+      };
+      const previousMonthExpenses = transactions
+        .filter(
+          (transaction) =>
+            transaction.type === "expense" &&
+            isWithinInterval(parseTransactionDate(transaction.occurredOn), previousMonthInterval),
+        )
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+
+      const delta = previousMonthExpenses > 0
+        ? ((thisMonthExpenses - previousMonthExpenses) / previousMonthExpenses) * 100
+        : 0;
+
+      items.push({
+        id: "summary-monthly",
+        type: delta <= 0 ? "success" : "info",
+        title: "Spending Summary",
+        message:
+          thisMonthIncome > 0
+            ? `Income ${formatCurrency(thisMonthIncome, settings.currency)}, expenses ${formatCurrency(thisMonthExpenses, settings.currency)}. ${delta <= 0 ? `You're spending ${Math.abs(delta).toFixed(1)}% less than last month.` : `You're spending ${delta.toFixed(1)}% more than last month.`}`
+            : `Expenses total ${formatCurrency(thisMonthExpenses, settings.currency)} this month.`,
+        time: "updated recently",
+        read: false,
+      });
+    }
+
+    const latestIncome = transactions.find((transaction) => transaction.type === "income");
+    if (latestIncome) {
+      items.push({
+        id: `income-${latestIncome.id}`,
+        type: "success",
+        title: "Income Recorded",
+        message: `${latestIncome.name} added ${formatCurrency(getTransactionAmountInCurrency(latestIncome, settings.currency), settings.currency)} to your account.`,
+        time: formatDistanceToNow(parseTransactionDate(latestIncome.occurredOn), { addSuffix: true }),
+        read: false,
+      });
+    }
+
+    return items
+      .filter((notification) => !dismissedIds.includes(notification.id))
+      .map((notification) => ({
+        ...notification,
+        read: readIds.includes(notification.id),
+      }))
+      .slice(0, 8);
+  }, [budgetCategories, dismissedIds, goals, readIds, settings, subscriptions, transactions]);
+
+  const unreadCount = derivedNotifications.filter((notification) => !notification.read).length;
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'success':
+      case "success":
         return <CheckCircle className="size-5 text-primary" />;
-      case 'warning':
+      case "warning":
         return <AlertCircle className="size-5 text-orange-500" />;
-      case 'info':
+      case "info":
         return <Info className="size-5 text-blue-500" />;
-      case 'alert':
+      case "alert":
         return <AlertCircle className="size-5 text-destructive" />;
       default:
         return <Bell className="size-5" />;
@@ -74,115 +271,90 @@ export default function NotificationsPanel() {
 
   const getBackgroundColor = (type: string) => {
     switch (type) {
-      case 'success':
-        return 'bg-primary/10 border-primary/20';
-      case 'warning':
-        return 'bg-orange-50 border-orange-200';
-      case 'info':
-        return 'bg-blue-50 border-blue-200';
-      case 'alert':
-        return 'bg-destructive/10 border-destructive/20';
+      case "success":
+        return "bg-primary/10 border-primary/20";
+      case "warning":
+        return "bg-orange-50 border-orange-200";
+      case "info":
+        return "bg-blue-50 border-blue-200";
+      case "alert":
+        return "bg-destructive/10 border-destructive/20";
       default:
-        return 'bg-muted border-border';
+        return "bg-muted border-border";
     }
   };
 
   const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => 
-      n.id === id ? { ...n, read: true } : n
-    ));
+    setReadIds((current) => (current.includes(id) ? current : [...current, id]));
   };
 
   const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    setReadIds(derivedNotifications.map((notification) => notification.id));
   };
 
   const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+    setDismissedIds((current) => [...current, id]);
   };
 
   return (
     <>
-      {/* Bell Icon Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative bg-white/20 hover:bg-white/30 p-2 rounded-lg transition-colors"
       >
         <Bell className="size-5" />
-        {unreadCount > 0 && (
+        {unreadCount > 0 ? (
           <span className="absolute -top-1 -right-1 bg-destructive text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
             {unreadCount}
           </span>
-        )}
+        ) : null}
       </button>
 
-      {/* Notifications Panel */}
-      {isOpen && (
+      {isOpen ? (
         <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/20 z-40" 
-            onClick={() => setIsOpen(false)}
-          />
-          
-          {/* Panel */}
+          <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setIsOpen(false)} />
+
           <div className="fixed top-16 right-4 w-96 max-w-[calc(100vw-2rem)] bg-card rounded-2xl shadow-2xl border border-border z-50 max-h-[80vh] flex flex-col">
-            {/* Header */}
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
                 <h3>Notifications</h3>
-                {unreadCount > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {unreadCount} unread
-                  </p>
-                )}
+                {unreadCount > 0 ? <p className="text-sm text-muted-foreground">{unreadCount} unread</p> : null}
               </div>
               <div className="flex items-center gap-2">
-                {unreadCount > 0 && (
-                  <button
-                    onClick={markAllAsRead}
-                    className="text-xs text-primary hover:underline"
-                  >
+                {unreadCount > 0 ? (
+                  <button onClick={markAllAsRead} className="text-xs text-primary hover:underline">
                     Mark all read
                   </button>
-                )}
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="hover:bg-muted p-2 rounded-lg transition-colors"
-                >
+                ) : null}
+                <button onClick={() => setIsOpen(false)} className="hover:bg-muted p-2 rounded-lg transition-colors">
                   <X className="size-4" />
                 </button>
               </div>
             </div>
 
-            {/* Notifications List */}
             <div className="overflow-y-auto flex-1">
-              {notifications.length === 0 ? (
+              {derivedNotifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <Bell className="size-12 mx-auto text-muted-foreground/50 mb-3" />
                   <p className="text-muted-foreground">No notifications yet</p>
                 </div>
               ) : (
                 <div className="p-3 space-y-2">
-                  {notifications.map((notification) => (
+                  {derivedNotifications.map((notification) => (
                     <div
                       key={notification.id}
-                      className={`p-4 rounded-lg border transition-all cursor-pointer ${
-                        getBackgroundColor(notification.type)
-                      } ${!notification.read ? 'shadow-sm' : 'opacity-70'}`}
+                      className={`p-4 rounded-lg border transition-all cursor-pointer ${getBackgroundColor(notification.type)} ${!notification.read ? "shadow-sm" : "opacity-70"}`}
                       onClick={() => markAsRead(notification.id)}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 mt-0.5">
-                          {getIcon(notification.type)}
-                        </div>
+                        <div className="flex-shrink-0 mt-0.5">{getIcon(notification.type)}</div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <h4 className="text-sm">
                               {notification.title}
-                              {!notification.read && (
+                              {!notification.read ? (
                                 <span className="inline-block w-2 h-2 bg-primary rounded-full ml-2" />
-                              )}
+                              ) : null}
                             </h4>
                             <button
                               onClick={(e) => {
@@ -194,12 +366,8 @@ export default function NotificationsPanel() {
                               <X className="size-3 text-muted-foreground" />
                             </button>
                           </div>
-                          <p className="text-sm text-foreground/80 mb-2">
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {notification.time}
-                          </p>
+                          <p className="text-sm text-foreground/80 mb-2">{notification.message}</p>
+                          <p className="text-xs text-muted-foreground">{notification.time}</p>
                         </div>
                       </div>
                     </div>
@@ -209,7 +377,7 @@ export default function NotificationsPanel() {
             </div>
           </div>
         </>
-      )}
+      ) : null}
     </>
   );
 }
