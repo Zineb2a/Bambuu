@@ -38,6 +38,7 @@ import {
   startOfYear,
   subDays,
   subMonths,
+  subWeeks,
 } from "date-fns";
 import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
@@ -62,7 +63,12 @@ export default function Analytics() {
   const { user } = useAuth();
   const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
-  const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month");
+  const [overviewPeriod, setOverviewPeriod] = useState<"week" | "month" | "year">("month");
+  const [distributionPeriod, setDistributionPeriod] = useState<"week" | "month" | "year">("month");
+  const [trendPeriod, setTrendPeriod] = useState<"6m" | "12m" | "all">("12m");
+  const [spendingPeriod, setSpendingPeriod] = useState<"14d" | "30d" | "90d">("14d");
+  const [budgetPeriod, setBudgetPeriod] = useState<"1m" | "3m" | "6m" | "12m" | "all">("6m");
+  const [categoryTrendPeriod, setCategoryTrendPeriod] = useState<"3m" | "6m" | "12m">("6m");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
@@ -132,16 +138,35 @@ export default function Analytics() {
   }, [user]);
 
   const now = new Date();
+  const firstTransactionDate = useMemo(
+    () =>
+      transactions.length > 0
+        ? transactions
+            .map((transaction) => parseTransactionDate(transaction.occurredOn))
+            .sort((a, b) => a.getTime() - b.getTime())[0]
+        : now,
+    [now, transactions],
+  );
 
   const selectedInterval = useMemo(() => {
-    if (timePeriod === "week") {
+    if (overviewPeriod === "week") {
       return { start: startOfWeek(now), end: endOfWeek(now) };
     }
-    if (timePeriod === "year") {
+    if (overviewPeriod === "year") {
       return { start: startOfYear(now), end: endOfYear(now) };
     }
     return { start: startOfMonth(now), end: endOfMonth(now) };
-  }, [now, timePeriod]);
+  }, [now, overviewPeriod]);
+
+  const distributionInterval = useMemo(() => {
+    if (distributionPeriod === "week") {
+      return { start: startOfWeek(now), end: endOfWeek(now) };
+    }
+    if (distributionPeriod === "year") {
+      return { start: startOfYear(now), end: endOfYear(now) };
+    }
+    return { start: startOfMonth(now), end: endOfMonth(now) };
+  }, [distributionPeriod, now]);
 
   const periodTransactions = useMemo(
     () =>
@@ -153,6 +178,15 @@ export default function Analytics() {
 
   const expenseTransactions = periodTransactions.filter((transaction) => transaction.type === "expense");
   const incomeTransactions = periodTransactions.filter((transaction) => transaction.type === "income");
+  const distributionTransactions = useMemo(
+    () =>
+      transactions.filter(
+        (transaction) =>
+          transaction.type === "expense" &&
+          isWithinInterval(parseTransactionDate(transaction.occurredOn), distributionInterval),
+      ),
+    [distributionInterval, transactions],
+  );
 
   const totalIncome = incomeTransactions.reduce(
     (sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency),
@@ -166,7 +200,7 @@ export default function Analytics() {
   const savingsRate = totalIncome > 0 ? ((totalSaved / totalIncome) * 100).toFixed(1) : "0.0";
 
   const categoryData = useMemo(() => {
-    const totals = expenseTransactions.reduce<Record<string, number>>((acc, transaction) => {
+    const totals = distributionTransactions.reduce<Record<string, number>>((acc, transaction) => {
       acc[transaction.category] =
         (acc[transaction.category] ?? 0) + getTransactionAmountInCurrency(transaction, currency);
       return acc;
@@ -182,13 +216,18 @@ export default function Analytics() {
         percentage: total > 0 ? Number(((value / total) * 100).toFixed(1)) : 0,
       }))
       .sort((a, b) => b.value - a.value);
-  }, [currency, expenseTransactions]);
+  }, [currency, distributionTransactions]);
 
   const topCategory = categoryData[0];
 
   const monthlyComparison = useMemo(() => {
+    const startMonth =
+      trendPeriod === "all"
+        ? startOfMonth(firstTransactionDate)
+        : startOfMonth(subMonths(now, trendPeriod === "12m" ? 11 : 5));
+
     return eachMonthOfInterval({
-      start: startOfMonth(subMonths(now, 5)),
+      start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
       const monthKey = format(month, "yyyy-MM");
@@ -209,7 +248,7 @@ export default function Analytics() {
         savings: income - expenses,
       };
     });
-  }, [currency, now, transactions]);
+  }, [currency, firstTransactionDate, now, transactions, trendPeriod]);
 
   const previousMonthData = monthlyComparison[monthlyComparison.length - 2];
   const currentMonthData = monthlyComparison[monthlyComparison.length - 1];
@@ -219,8 +258,9 @@ export default function Analytics() {
       : 0;
 
   const dailySpending = useMemo(() => {
+    const dayCount = spendingPeriod === "90d" ? 89 : spendingPeriod === "30d" ? 29 : 13;
     return eachDayOfInterval({
-      start: startOfDay(subDays(now, 13)),
+      start: startOfDay(subDays(now, dayCount)),
       end: endOfDay(now),
     }).map((day) => {
       const amount = transactions
@@ -236,35 +276,62 @@ export default function Analytics() {
         amount,
       };
     });
-  }, [currency, now, transactions]);
+  }, [currency, now, spendingPeriod, transactions]);
 
   const avgDailySpending = (
     dailySpending.reduce((sum, item) => sum + item.amount, 0) / (dailySpending.length || 1)
   ).toFixed(2);
 
   const budgetComparison = useMemo(() => {
-    return budgetCategories.map((category) => {
-      const actual = expenseTransactions
-        .filter((transaction) => transaction.category.toLowerCase() === category.name.toLowerCase())
+    const startMonth =
+      budgetPeriod === "all"
+        ? startOfMonth(firstTransactionDate)
+        : startOfMonth(
+            subMonths(
+              now,
+              budgetPeriod === "12m" ? 11 : budgetPeriod === "6m" ? 5 : budgetPeriod === "3m" ? 2 : 0,
+            ),
+          );
+
+    return eachMonthOfInterval({
+      start: startMonth,
+      end: endOfMonth(now),
+    }).map((month) => {
+      const monthKey = format(month, "yyyy-MM");
+      const actual = transactions
+        .filter(
+          (transaction) =>
+            transaction.type === "expense" &&
+            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === monthKey,
+        )
         .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
 
+      const budget = budgetCategories.reduce(
+        (sum, category) => sum + getBudgetAmountInCurrency(category, currency),
+        0,
+      );
+
       return {
-        category: category.name,
-        budget: getBudgetAmountInCurrency(category, currency),
+        month: format(month, "MMM yyyy"),
+        budget,
         actual,
       };
     });
-  }, [budgetCategories, currency, expenseTransactions]);
+  }, [budgetCategories, budgetPeriod, currency, firstTransactionDate, now, transactions]);
 
-  const overBudgetCategory = budgetComparison
-    .filter((category) => category.actual > category.budget)
-    .sort((a, b) => b.actual - b.budget - (a.actual - a.budget))[0];
+  const overBudgetMonth = budgetComparison
+    .slice()
+    .reverse()
+    .find((month) => month.actual > month.budget);
 
   const categoryTrends = useMemo(() => {
     const trackedCategories = budgetCategories.slice(0, 4);
+    const startMonth = startOfMonth(
+      subMonths(now, categoryTrendPeriod === "12m" ? 11 : categoryTrendPeriod === "6m" ? 5 : 2),
+    );
 
     return eachMonthOfInterval({
-      start: startOfMonth(subMonths(now, 2)),
+      start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
       const monthKey = format(month, "yyyy-MM");
@@ -283,17 +350,17 @@ export default function Analytics() {
 
       return row;
     });
-  }, [budgetCategories, currency, now, transactions]);
+  }, [budgetCategories, categoryTrendPeriod, currency, now, transactions]);
 
   const recommendations = useMemo(() => {
     const items: Array<{ title: string; message: string }> = [];
 
-    if (overBudgetCategory) {
+    if (overBudgetMonth) {
       items.push({
-        title: t("analytics.reduceCategory", { category: localizeCategory(overBudgetCategory.category) }),
-        message: t("analytics.overBudgetInCategory", {
-          amount: formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency),
-          category: localizeCategory(overBudgetCategory.category),
+        title: t("analytics.reduceSpending"),
+        message: t("analytics.overBudgetInMonth", {
+          amount: formatCurrency(overBudgetMonth.actual - overBudgetMonth.budget, currency),
+          month: overBudgetMonth.month,
         }),
       });
     }
@@ -338,7 +405,7 @@ export default function Analytics() {
     }
 
     return items.slice(0, 3);
-  }, [categoryData, goals, overBudgetCategory, subscriptions]);
+  }, [categoryData, currency, goals, overBudgetMonth, subscriptions, t]);
 
   const trackedTrendCategories = budgetCategories.slice(0, 4);
 
@@ -346,13 +413,13 @@ export default function Analytics() {
     <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">{t("analytics.view")}</span>
             <div className="flex gap-2">
               <button
-                onClick={() => setTimePeriod("week")}
+                onClick={() => setOverviewPeriod("week")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  timePeriod === "week"
+                  overviewPeriod === "week"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-secondary"
                 }`}
@@ -361,9 +428,9 @@ export default function Analytics() {
                 {t("home.week")}
               </button>
               <button
-                onClick={() => setTimePeriod("month")}
+                onClick={() => setOverviewPeriod("month")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  timePeriod === "month"
+                  overviewPeriod === "month"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-secondary"
                 }`}
@@ -372,9 +439,9 @@ export default function Analytics() {
                 {t("home.month")}
               </button>
               <button
-                onClick={() => setTimePeriod("year")}
+                onClick={() => setOverviewPeriod("year")}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  timePeriod === "year"
+                  overviewPeriod === "year"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-secondary"
                 }`}
@@ -438,10 +505,10 @@ export default function Analytics() {
                   <div>
                     <h4 className="mb-2 text-orange-900">{t("analytics.watchOut")}</h4>
                     <p className="text-sm text-orange-800">
-                      {overBudgetCategory
-                        ? t("analytics.overBudget", {
-                            category: localizeCategory(overBudgetCategory.category),
-                            amount: formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency),
+                      {overBudgetMonth
+                        ? t("analytics.overBudgetMonthSummary", {
+                            month: overBudgetMonth.month,
+                            amount: formatCurrency(overBudgetMonth.actual - overBudgetMonth.budget, currency),
                           })
                         : t("analytics.noCategoriesOver")}
                     </p>
@@ -472,13 +539,30 @@ export default function Analytics() {
             </div>
 
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <div className="flex items-center gap-2 mb-4">
-                <PieChartIcon className="size-5 text-primary" />
-                <h3>{t("analytics.spendingDistribution")}</h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <PieChartIcon className="size-5 text-primary" />
+                  <h3>{t("analytics.spendingDistribution")}</h3>
+                </div>
+                <div className="flex gap-2">
+                  {(["week", "month", "year"] as const).map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setDistributionPeriod(period)}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        distributionPeriod === period
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {period === "week" ? t("home.week") : period === "month" ? t("home.month") : t("home.year")}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="grid md:grid-cols-2 gap-6">
                 <ResponsiveContainer width="100%" height={300}>
-                  <PieChart key={`analytics-spending-pie-${timePeriod}`}>
+                  <PieChart key={`analytics-spending-pie-${distributionPeriod}`}>
                     <Pie
                       data={categoryData.length ? categoryData : [{ name: t("analytics.noExpensesPie"), value: 1, color: "#d9f0b3", percentage: 100 }]}
                       cx="50%"
@@ -521,9 +605,26 @@ export default function Analytics() {
             </div>
 
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 className="size-5 text-primary" />
-                <h3>{t("analytics.sixMonthTrend")}</h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="size-5 text-primary" />
+                  <h3>{t("analytics.incomeExpenseTrend")}</h3>
+                </div>
+                <div className="flex gap-2">
+                  {(["6m", "12m", "all"] as const).map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setTrendPeriod(period)}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        trendPeriod === period
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {period === "6m" ? t("analytics.last6Months") : period === "12m" ? t("analytics.last12Months") : t("analytics.allTime")}
+                    </button>
+                  ))}
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={monthlyComparison}>
@@ -563,9 +664,26 @@ export default function Analytics() {
             </div>
 
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-              <div className="flex items-center gap-2 mb-4">
-                <Calendar className="size-5 text-primary" />
-                <h3>{t("analytics.dailySpendingPattern")}</h3>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="size-5 text-primary" />
+                  <h3>{t("analytics.spendingOverTime")}</h3>
+                </div>
+                <div className="flex gap-2">
+                  {(["14d", "30d", "90d"] as const).map((period) => (
+                    <button
+                      key={period}
+                      onClick={() => setSpendingPeriod(period)}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        spendingPeriod === period
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {period === "14d" ? t("analytics.last14Days") : period === "30d" ? t("analytics.last30Days") : t("analytics.last90Days")}
+                    </button>
+                  ))}
+                </div>
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={dailySpending}>
@@ -586,10 +704,35 @@ export default function Analytics() {
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-                <h3 className="mb-4">{t("analytics.budgetVsActual")}</h3>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3>{t("analytics.budgetVsActual")}</h3>
+                  <div className="flex gap-2">
+                    {(["1m", "3m", "6m", "12m", "all"] as const).map((period) => (
+                      <button
+                        key={period}
+                        onClick={() => setBudgetPeriod(period)}
+                        className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          budgetPeriod === period
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {period === "1m"
+                          ? t("analytics.lastMonth")
+                          : period === "3m"
+                            ? t("analytics.last3Months")
+                            : period === "6m"
+                              ? t("analytics.last6Months")
+                              : period === "12m"
+                                ? t("analytics.last12Months")
+                                : t("analytics.allTime")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={budgetComparison}>
-                    <XAxis dataKey="category" stroke="#52796f" fontSize={12} />
+                    <XAxis dataKey="month" stroke="#52796f" fontSize={12} />
                     <YAxis stroke="#52796f" />
                     <Tooltip
                       contentStyle={{
@@ -605,7 +748,24 @@ export default function Analytics() {
               </div>
 
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-                <h3 className="mb-4">{t("analytics.categoryTrends")}</h3>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3>{t("analytics.categoryTrends")}</h3>
+                  <div className="flex gap-2">
+                    {(["3m", "6m", "12m"] as const).map((period) => (
+                      <button
+                        key={period}
+                        onClick={() => setCategoryTrendPeriod(period)}
+                        className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          categoryTrendPeriod === period
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {period === "3m" ? t("analytics.last3Months") : period === "6m" ? t("analytics.last6Months") : t("analytics.last12Months")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={categoryTrends}>
                     <XAxis dataKey="month" stroke="#52796f" />

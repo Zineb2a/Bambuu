@@ -179,6 +179,31 @@ alter table public.linked_cards add column if not exists auto_import boolean not
 alter table public.linked_cards add column if not exists created_at timestamptz not null default timezone('utc', now());
 alter table public.linked_cards add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  source_key text not null,
+  type text not null check (type in ('info', 'warning', 'success', 'alert')),
+  title text not null,
+  message text not null,
+  payload jsonb not null default '{}'::jsonb,
+  read_at timestamptz,
+  dismissed_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.notifications add column if not exists source_key text;
+alter table public.notifications add column if not exists type text;
+alter table public.notifications add column if not exists title text;
+alter table public.notifications add column if not exists message text;
+alter table public.notifications add column if not exists payload jsonb not null default '{}'::jsonb;
+alter table public.notifications add column if not exists read_at timestamptz;
+alter table public.notifications add column if not exists dismissed_at timestamptz;
+alter table public.notifications add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.notifications add column if not exists updated_at timestamptz not null default timezone('utc', now());
+create unique index if not exists notifications_user_source_key_idx on public.notifications (user_id, source_key);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -211,6 +236,7 @@ alter table public.subscriptions enable row level security;
 alter table public.investments enable row level security;
 alter table public.user_settings enable row level security;
 alter table public.linked_cards enable row level security;
+alter table public.notifications enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -389,5 +415,29 @@ create policy "linked_cards_update_own"
 drop policy if exists "linked_cards_delete_own" on public.linked_cards;
 create policy "linked_cards_delete_own"
   on public.linked_cards
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "notifications_select_own" on public.notifications;
+create policy "notifications_select_own"
+  on public.notifications
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "notifications_insert_own" on public.notifications;
+create policy "notifications_insert_own"
+  on public.notifications
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "notifications_update_own" on public.notifications;
+create policy "notifications_update_own"
+  on public.notifications
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "notifications_delete_own" on public.notifications;
+create policy "notifications_delete_own"
+  on public.notifications
   for delete
   using (auth.uid() = user_id);
