@@ -22,6 +22,8 @@ import Layout from "../components/Layout";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
 import { BRAND_LOGO_SRC } from "../lib/branding";
+import { SUPPORTED_LANGUAGES } from "../lib/i18n";
+import { useI18n } from "../providers/I18nProvider";
 import {
   createLinkedCard,
   getUserProfile,
@@ -34,17 +36,7 @@ import {
 } from "../lib/settings";
 import type { LinkedCard } from "../types/settings";
 
-const languages = [
-  "English",
-  "Español",
-  "Français",
-  "Deutsch",
-  "Português",
-  "中文",
-  "日本語",
-  "한국어",
-  "العربية",
-];
+const languages = SUPPORTED_LANGUAGES;
 
 const currencies = [
   { code: "USD", symbol: "$", name: "US Dollar" },
@@ -72,6 +64,7 @@ const emptyCard = {
 export default function Settings() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [isLoading, setIsLoading] = useState(true);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
@@ -159,7 +152,7 @@ export default function Settings() {
         setLinkedCards(cards);
       } catch (error) {
         if (isMounted) {
-          setErrorNotification(error instanceof Error ? error.message : "Failed to load settings");
+          setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedLoad"));
         }
       } finally {
         if (isMounted) {
@@ -235,11 +228,11 @@ export default function Settings() {
       window.dispatchEvent(new Event("profileUpdated"));
       showSaved(
         authUpdates.email
-          ? "Profile saved. Check your email if Supabase requires email change confirmation."
-          : "Profile saved successfully.",
+          ? t("settingsPage.profileSavedEmail")
+          : t("settingsPage.profileSaved"),
       );
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to save profile");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedSaveProfile"));
     }
   };
 
@@ -281,7 +274,7 @@ export default function Settings() {
       setSavingsMilestones(saved.savingsMilestones);
       window.dispatchEvent(new Event("settingsUpdated"));
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to update settings");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedUpdateSettings"));
     }
   };
 
@@ -294,7 +287,7 @@ export default function Settings() {
         throw error;
       }
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to log out");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedLogout"));
       return;
     }
 
@@ -314,9 +307,9 @@ export default function Settings() {
       setLinkedCards([...linkedCards, created]);
       setShowAddCardModal(false);
       setNewCard(emptyCard);
-      showSaved("Card linked successfully.");
+      showSaved(t("settingsPage.cardLinked"));
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to add card");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedAddCard"));
     }
   };
 
@@ -329,7 +322,7 @@ export default function Settings() {
       await removeLinkedCard(user.id, id);
       setLinkedCards(linkedCards.filter((card) => card.id !== id));
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to remove card");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedRemoveCard"));
     }
   };
 
@@ -349,18 +342,18 @@ export default function Settings() {
       });
       setLinkedCards(linkedCards.map((item) => (item.id === id ? updated : item)));
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to update card");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedUpdateCard"));
     }
   };
 
   const handleUpdatePassword = async () => {
     if (!newPassword) {
-      setErrorNotification("Enter a new password.");
+      setErrorNotification(t("settingsPage.enterNewPassword"));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setErrorNotification("New password and confirmation do not match.");
+      setErrorNotification(t("settingsPage.passwordMismatch"));
       return;
     }
 
@@ -369,9 +362,9 @@ export default function Settings() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      showSaved("Password updated successfully.");
+      showSaved(t("settingsPage.passwordUpdated"));
     } catch (error) {
-      setErrorNotification(error instanceof Error ? error.message : "Failed to update password");
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedUpdatePassword"));
     }
   };
 
@@ -384,13 +377,13 @@ export default function Settings() {
     <Layout>
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h2>Settings</h2>
+          <h2>{t("settingsPage.settings")}</h2>
           <button
             onClick={handleLogout}
             className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 transition-opacity"
           >
             <LogOut className="size-4" />
-            Logout
+            {t("settingsPage.logout")}
           </button>
         </div>
 
@@ -410,7 +403,7 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <User className="size-5 text-primary" />
-            <h3>Profile</h3>
+            <h3>{t("settingsPage.profile")}</h3>
           </div>
 
           <div className="space-y-6">
@@ -425,40 +418,40 @@ export default function Settings() {
                 </label>
               </div>
               <div>
-                <h4 className="mb-1">Profile Picture</h4>
-                <p className="text-sm text-muted-foreground">Upload a photo to personalize your account</p>
+                <h4 className="mb-1">{t("settingsPage.profilePicture")}</h4>
+                <p className="text-sm text-muted-foreground">{t("settingsPage.uploadPhoto")}</p>
               </div>
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">First Name</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.firstName")}</label>
               <input
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                placeholder="Your first name"
+                placeholder={t("settingsPage.firstNamePlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">Last Name</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.lastName")}</label>
               <input
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                placeholder="Your last name"
+                placeholder={t("settingsPage.lastNamePlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">Email</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.email")}</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email"
+                placeholder={t("settingsPage.emailPlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
@@ -469,7 +462,7 @@ export default function Settings() {
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <Check className="size-5" />
-              Save Profile Changes
+              {t("settingsPage.saveProfile")}
             </button>
           </div>
         </div>
@@ -477,7 +470,7 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Languages className="size-5 text-primary" />
-            <h3>Language</h3>
+            <h3>{t("settingsPage.language")}</h3>
           </div>
 
           <select
@@ -499,7 +492,7 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="size-5 text-primary" />
-            <h3>Default Currency</h3>
+            <h3>{t("settingsPage.defaultCurrency")}</h3>
           </div>
 
           <select
@@ -516,13 +509,13 @@ export default function Settings() {
               </option>
             ))}
           </select>
-          <p className="text-sm text-muted-foreground mt-2">All amounts will be displayed in your default currency</p>
+          <p className="text-sm text-muted-foreground mt-2">{t("settingsPage.defaultCurrencyHelp")}</p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="size-5 text-primary" />
-            <h3>Date Format</h3>
+            <h3>{t("settingsPage.dateFormat")}</h3>
           </div>
 
           <select
@@ -539,7 +532,7 @@ export default function Settings() {
               </option>
             ))}
           </select>
-          <p className="text-sm text-muted-foreground mt-2">Choose the date format you prefer</p>
+          <p className="text-sm text-muted-foreground mt-2">{t("settingsPage.dateFormatHelp")}</p>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6">
@@ -547,8 +540,8 @@ export default function Settings() {
             <div className="flex items-center gap-2">
               {darkMode ? <Moon className="size-5 text-primary" /> : <Sun className="size-5 text-primary" />}
               <div>
-                <h3>Dark Mode</h3>
-                <p className="text-sm text-muted-foreground mt-1">Switch between light and dark themes</p>
+                <h3>{t("settingsPage.darkMode")}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{t("settingsPage.darkModeHelp")}</p>
               </div>
             </div>
 
@@ -572,15 +565,15 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <CreditCard className="size-5 text-primary" />
-            <h3>Linked Cards</h3>
+            <h3>{t("settingsPage.linkedCards")}</h3>
           </div>
 
           <div className="space-y-4">
             {linkedCards.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <CreditCard className="size-12 mx-auto mb-3 opacity-50" />
-                <p>No cards linked yet</p>
-                <p className="text-sm mt-1">Add a card to enable automatic expense tracking</p>
+                <p>{t("settingsPage.noCards")}</p>
+                <p className="text-sm mt-1">{t("settingsPage.addCardHelp")}</p>
               </div>
             ) : (
               linkedCards.map((card) => (
@@ -605,7 +598,7 @@ export default function Settings() {
 
                     <div className="flex items-end justify-between">
                       <div>
-                        <div className="text-xs opacity-70 mb-1">CARDHOLDER</div>
+                        <div className="text-xs opacity-70 mb-1">{t("settingsPage.cardholder")}</div>
                         <div className="text-sm font-medium">{card.cardHolder.toUpperCase()}</div>
                       </div>
 
@@ -620,7 +613,7 @@ export default function Settings() {
                           <div className="w-10 h-5 bg-white/20 rounded-full peer-checked:bg-primary transition-colors relative">
                             <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-4 w-4 transition-transform ${card.autoImport ? "translate-x-5" : ""}`}></div>
                           </div>
-                          <span className="text-xs">Auto</span>
+                          <span className="text-xs">{t("settingsPage.auto")}</span>
                         </label>
 
                         <button
@@ -641,11 +634,11 @@ export default function Settings() {
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
               <Plus className="size-5" />
-              Link New Card
+              {t("settingsPage.linkNewCard")}
             </button>
 
             <p className="text-xs text-muted-foreground text-center mt-2">
-              Card information is stored in your account. Enable auto-import to automatically register expenses from linked cards.
+              {t("settingsPage.linkNewCardHelp")}
             </p>
           </div>
         </div>
@@ -654,7 +647,7 @@ export default function Settings() {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-card border border-border rounded-xl p-6 w-96">
               <div className="flex items-center justify-between">
-                <h3>Add Card</h3>
+                <h3>{t("settingsPage.addCard")}</h3>
                 <button
                   onClick={() => setShowAddCardModal(false)}
                   className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
@@ -665,52 +658,52 @@ export default function Settings() {
 
               <div className="space-y-4 mt-4">
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Card Number</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardNumber")}</label>
                   <input
                     type="text"
                     value={newCard.cardNumber}
                     onChange={(e) => setNewCard({ ...newCard, cardNumber: e.target.value })}
-                    placeholder="Card Number"
+                    placeholder={t("settingsPage.cardNumberPlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Card Holder</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardHolder")}</label>
                   <input
                     type="text"
                     value={newCard.cardHolder}
                     onChange={(e) => setNewCard({ ...newCard, cardHolder: e.target.value })}
-                    placeholder="Card Holder"
+                    placeholder={t("settingsPage.cardHolderPlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Card Type</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardType")}</label>
                   <select
                     value={newCard.cardType}
                     onChange={(e) => setNewCard({ ...newCard, cardType: e.target.value as "credit" | "debit" })}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
-                    <option value="credit">Credit</option>
-                    <option value="debit">Debit</option>
+                    <option value="credit">{t("settingsPage.credit")}</option>
+                    <option value="debit">{t("settingsPage.debit")}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Bank Name</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.bankName")}</label>
                   <input
                     type="text"
                     value={newCard.bankName}
                     onChange={(e) => setNewCard({ ...newCard, bankName: e.target.value })}
-                    placeholder="Bank Name"
+                    placeholder={t("settingsPage.bankNamePlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Auto Import</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.autoImport")}</label>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
@@ -729,7 +722,7 @@ export default function Settings() {
                   className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                 >
                   <Check className="size-5" />
-                  Add Card
+                  {t("settingsPage.addCard")}
                 </button>
               </div>
             </div>
@@ -739,14 +732,14 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Bell className="size-5 text-primary" />
-            <h3>Notifications</h3>
+            <h3>{t("settingsPage.notifications")}</h3>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium">Budget Alert Notifications</h4>
-                <p className="text-xs text-muted-foreground mt-1">Get notified when you reach 80% of your budget</p>
+                <h4 className="text-sm font-medium">{t("settingsPage.budgetAlerts")}</h4>
+                <p className="text-xs text-muted-foreground mt-1">{t("settingsPage.budgetAlertsHelp")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -766,8 +759,8 @@ export default function Settings() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium">Subscription Reminders</h4>
-                <p className="text-xs text-muted-foreground mt-1">Remind me 3 days before subscription renewals</p>
+                <h4 className="text-sm font-medium">{t("settingsPage.subscriptionReminders")}</h4>
+                <p className="text-xs text-muted-foreground mt-1">{t("settingsPage.subscriptionRemindersHelp")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -787,8 +780,8 @@ export default function Settings() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium">Weekly Summary</h4>
-                <p className="text-xs text-muted-foreground mt-1">Receive weekly spending summary emails</p>
+                <h4 className="text-sm font-medium">{t("settingsPage.weeklySummary")}</h4>
+                <p className="text-xs text-muted-foreground mt-1">{t("settingsPage.weeklySummaryHelp")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -808,8 +801,8 @@ export default function Settings() {
 
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="text-sm font-medium">Savings Milestones</h4>
-                <p className="text-xs text-muted-foreground mt-1">Celebrate when you reach savings goals</p>
+                <h4 className="text-sm font-medium">{t("settingsPage.savingsMilestones")}</h4>
+                <p className="text-xs text-muted-foreground mt-1">{t("settingsPage.savingsMilestonesHelp")}</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -832,39 +825,39 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Lock className="size-5 text-primary" />
-            <h3>Security</h3>
+            <h3>{t("settingsPage.security")}</h3>
           </div>
 
           <div className="space-y-4">
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">Current Password</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.currentPassword")}</label>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter your current password"
+                placeholder={t("settingsPage.currentPasswordPlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">New Password</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.newPassword")}</label>
               <input
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter your new password"
+                placeholder={t("settingsPage.newPasswordPlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
             <div>
-              <label className="text-sm text-muted-foreground mb-2 block">Confirm Password</label>
+              <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.confirmPassword")}</label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your new password"
+                placeholder={t("settingsPage.confirmPasswordPlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
@@ -874,7 +867,7 @@ export default function Settings() {
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
               <Check className="size-5" />
-              Update Password
+              {t("settingsPage.updatePassword")}
             </button>
           </div>
         </div>
@@ -882,12 +875,12 @@ export default function Settings() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="size-5 text-primary" />
-            <h3>Delete Account</h3>
+            <h3>{t("settingsPage.deleteAccount")}</h3>
           </div>
 
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Deleting your account will permanently remove all your data. This action cannot be undone.
+              {t("settingsPage.deleteAccountHelp")}
             </p>
 
             <button
@@ -895,14 +888,14 @@ export default function Settings() {
               className="w-full bg-destructive text-destructive-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
               <Trash2 className="size-5" />
-              Delete Account
+              {t("settingsPage.deleteAccount")}
             </button>
 
             {showDeleteConfirm ? (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                 <div className="bg-card border border-border rounded-xl p-6 w-96">
                   <div className="flex items-center justify-between">
-                    <h3>Confirm Deletion</h3>
+                    <h3>{t("settingsPage.confirmDeletion")}</h3>
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
                       className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
@@ -913,14 +906,14 @@ export default function Settings() {
 
                   <div className="space-y-4 mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Self-serve account deletion is not wired yet. This currently needs a server-side admin flow.
+                      {t("settingsPage.selfServeDelete")}
                     </p>
 
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
                       className="w-full bg-muted text-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                     >
-                      Close
+                      {t("common.close")}
                     </button>
                   </div>
                 </div>
@@ -932,11 +925,11 @@ export default function Settings() {
         <div className="bg-secondary border border-primary/20 rounded-xl p-6 text-center">
           <img
             src={BRAND_LOGO_SRC}
-            alt="Bambu logo"
+            alt="Bambuu logo"
             className="mx-auto mb-2 h-12 w-12 object-contain"
           />
-          <h4 className="mb-2 text-primary">Bambu v1.0</h4>
-          <p className="text-sm text-muted-foreground">Your friendly student budget tracker</p>
+          <h4 className="mb-2 text-primary">Bambuu v1.0</h4>
+          <p className="text-sm text-muted-foreground">{t("settingsPage.footer")}</p>
         </div>
       </div>
     </Layout>

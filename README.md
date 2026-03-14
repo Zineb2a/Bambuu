@@ -1,5 +1,5 @@
 
-  # Bambu
+  # Bambuu
 
 
   ## Running the code

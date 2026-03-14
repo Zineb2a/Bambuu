@@ -52,6 +52,7 @@ import {
 } from "../lib/finance";
 import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal, Subscription } from "../types/finance";
 import type { Transaction } from "../types/transactions";
 
@@ -59,6 +60,7 @@ const CHART_COLORS = ["#2d6a4f", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7", "#4
 
 export default function Analytics() {
   const { user } = useAuth();
+  const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
   const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -288,19 +290,22 @@ export default function Analytics() {
 
     if (overBudgetCategory) {
       items.push({
-        title: `Reduce ${overBudgetCategory.category} Expenses`,
-        message: `You're currently ${formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency)} over budget in ${overBudgetCategory.category}.`,
+        title: t("analytics.reduceCategory", { category: localizeCategory(overBudgetCategory.category) }),
+        message: t("analytics.overBudgetInCategory", {
+          amount: formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency),
+          category: localizeCategory(overBudgetCategory.category),
+        }),
       });
     }
 
     const foodCategory = categoryData.find((category) => category.name.toLowerCase() === "food");
     if (foodCategory) {
       items.push({
-        title: "Review Food Spending",
+        title: t("analytics.reviewFood"),
         message:
           foodCategory.percentage > 30
-            ? "Food is taking a large share of your spending. Meal planning could help flatten that curve."
-            : "Your food spending is under control. Keep the same routine if it feels sustainable.",
+            ? t("analytics.foodHigh")
+            : t("analytics.foodControlled"),
       });
     }
 
@@ -309,10 +314,13 @@ export default function Analytics() {
       const displayGoal = getSavingsGoalAmountsInCurrency(pinnedGoal, currency);
       const remaining = displayGoal.targetAmount - displayGoal.currentAmount;
       items.push({
-        title: "Track Your Savings Goal",
+        title: t("analytics.trackGoal"),
         message: remaining > 0
-          ? `${pinnedGoal.name} still needs ${formatCurrency(remaining, currency)}. Redirecting part of this month's surplus could speed it up.`
-          : `${pinnedGoal.name} is fully funded. Consider pinning the next goal.`,
+          ? t("analytics.goalNeeds", {
+              name: pinnedGoal.name,
+              amount: formatCurrency(remaining, currency),
+            })
+          : t("analytics.goalFunded", { name: pinnedGoal.name }),
       });
     }
 
@@ -322,8 +330,10 @@ export default function Analytics() {
         0,
       );
       items.push({
-        title: "Audit Recurring Costs",
-        message: `Subscriptions now total ${formatCurrency(monthlySubscriptionTotal, currency)} per month. Review unused services before the next renewal cycle.`,
+        title: t("analytics.auditRecurring"),
+        message: t("analytics.subscriptionsTotal", {
+          amount: formatCurrency(monthlySubscriptionTotal, currency),
+        }),
       });
     }
 
@@ -337,7 +347,7 @@ export default function Analytics() {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">View Analytics:</span>
+            <span className="text-sm text-muted-foreground">{t("analytics.view")}</span>
             <div className="flex gap-2">
               <button
                 onClick={() => setTimePeriod("week")}
@@ -348,7 +358,7 @@ export default function Analytics() {
                 }`}
               >
                 <Calendar className="size-4" />
-                Week
+                {t("home.week")}
               </button>
               <button
                 onClick={() => setTimePeriod("month")}
@@ -359,7 +369,7 @@ export default function Analytics() {
                 }`}
               >
                 <CalendarDays className="size-4" />
-                Month
+                {t("home.month")}
               </button>
               <button
                 onClick={() => setTimePeriod("year")}
@@ -370,7 +380,7 @@ export default function Analytics() {
                 }`}
               >
                 <CalendarRange className="size-4" />
-                Year
+                {t("home.year")}
               </button>
             </div>
           </div>
@@ -378,31 +388,31 @@ export default function Analytics() {
 
         {isLoading ? (
           <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-            Loading analytics...
+            {t("analytics.loading")}
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-4">
-                <div className="text-sm text-muted-foreground mb-1">Savings Rate</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("analytics.savingsRate")}</div>
                 <div className="text-2xl text-primary">{savingsRate}%</div>
-                <div className="text-xs text-muted-foreground mt-1">of income</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("analytics.ofIncome")}</div>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <div className="text-sm text-muted-foreground mb-1">Avg Daily</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("analytics.avgDaily")}</div>
                 <div className="text-2xl">{formatCurrency(Number(avgDailySpending), currency)}</div>
-                <div className="text-xs text-muted-foreground mt-1">spending</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("analytics.spending")}</div>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <div className="text-sm text-muted-foreground mb-1">Total Saved</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("analytics.totalSaved")}</div>
                 <div className="text-2xl text-primary">{formatCurrency(totalSaved, currency)}</div>
-                <div className="text-xs text-muted-foreground mt-1">this period</div>
+                <div className="text-xs text-muted-foreground mt-1">{t("analytics.thisPeriod")}</div>
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
-                <div className="text-sm text-muted-foreground mb-1">Top Category</div>
-                <div className="text-lg">{topCategory?.name ?? "None"}</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("analytics.topCategory")}</div>
+                <div className="text-lg">{topCategory ? localizeCategory(topCategory.name) : t("analytics.none")}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {topCategory ? formatCurrency(topCategory.value, currency) : "No expense data"}
+                  {topCategory ? formatCurrency(topCategory.value, currency) : t("analytics.noExpenseData")}
                 </div>
               </div>
             </div>
@@ -412,12 +422,12 @@ export default function Analytics() {
                 <div className="flex items-start gap-3">
                   <TrendingUp className="size-8 flex-shrink-0" />
                   <div>
-                    <h4 className="mb-2">Momentum</h4>
+                    <h4 className="mb-2">{t("analytics.momentum")}</h4>
                     <p className="text-sm text-white/90">
                       {spendingChange <= 0
-                        ? `You're spending ${Math.abs(spendingChange).toFixed(1)}% less than last month.`
-                        : `You're spending ${spendingChange.toFixed(1)}% more than last month.`}{" "}
-                      Current savings rate is {savingsRate}%.
+                        ? t("analytics.spendingLess", { delta: Math.abs(spendingChange).toFixed(1) })
+                        : t("analytics.spendingMore", { delta: spendingChange.toFixed(1) })}{" "}
+                      {t("analytics.currentSavingsRate", { rate: savingsRate })}
                     </p>
                   </div>
                 </div>
@@ -426,11 +436,14 @@ export default function Analytics() {
                 <div className="flex items-start gap-3">
                   <TrendingDown className="size-8 flex-shrink-0 text-orange-500" />
                   <div>
-                    <h4 className="mb-2 text-orange-900">Watch Out</h4>
+                    <h4 className="mb-2 text-orange-900">{t("analytics.watchOut")}</h4>
                     <p className="text-sm text-orange-800">
                       {overBudgetCategory
-                        ? `${overBudgetCategory.category} is ${formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency)} over budget.`
-                        : "No categories are over budget right now."}
+                        ? t("analytics.overBudget", {
+                            category: localizeCategory(overBudgetCategory.category),
+                            amount: formatCurrency(overBudgetCategory.actual - overBudgetCategory.budget, currency),
+                          })
+                        : t("analytics.noCategoriesOver")}
                     </p>
                   </div>
                 </div>
@@ -438,10 +451,10 @@ export default function Analytics() {
             </div>
 
             <div className="bg-secondary border border-border rounded-xl p-6">
-              <h3 className="mb-4">Smart Recommendations</h3>
+              <h3 className="mb-4">{t("analytics.smartRecommendations")}</h3>
               <div className="space-y-3">
                 {recommendations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Not enough data yet to generate recommendations.</p>
+                  <p className="text-sm text-muted-foreground">{t("analytics.notEnoughData")}</p>
                 ) : (
                   recommendations.map((item, index) => (
                     <div key={item.title} className="flex items-start gap-3">
@@ -461,13 +474,13 @@ export default function Analytics() {
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
               <div className="flex items-center gap-2 mb-4">
                 <PieChartIcon className="size-5 text-primary" />
-                <h3>Spending Distribution</h3>
+                <h3>{t("analytics.spendingDistribution")}</h3>
               </div>
               <div className="grid md:grid-cols-2 gap-6">
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart key={`analytics-spending-pie-${timePeriod}`}>
                     <Pie
-                      data={categoryData.length ? categoryData : [{ name: "No expenses", value: 1, color: "#d9f0b3", percentage: 100 }]}
+                      data={categoryData.length ? categoryData : [{ name: t("analytics.noExpensesPie"), value: 1, color: "#d9f0b3", percentage: 100 }]}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
@@ -475,7 +488,7 @@ export default function Analytics() {
                       outerRadius={100}
                       dataKey="value"
                     >
-                      {(categoryData.length ? categoryData : [{ name: "No expenses", value: 1, color: "#d9f0b3", percentage: 100 }]).map((entry, index) => (
+                      {(categoryData.length ? categoryData : [{ name: t("analytics.noExpensesPie"), value: 1, color: "#d9f0b3", percentage: 100 }]).map((entry, index) => (
                         <Cell key={`analytics-spending-cell-${entry.name}-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -488,7 +501,7 @@ export default function Analytics() {
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                          <span>{category.name}</span>
+                          <span>{localizeCategory(category.name)}</span>
                         </div>
                         <span className="font-medium">{formatCurrency(category.value, currency)}</span>
                       </div>
@@ -510,7 +523,7 @@ export default function Analytics() {
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 className="size-5 text-primary" />
-                <h3>6-Month Trend</h3>
+                <h3>{t("analytics.sixMonthTrend")}</h3>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <AreaChart data={monthlyComparison}>
@@ -540,11 +553,11 @@ export default function Analytics() {
               <div className="flex items-center justify-center gap-6 mt-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: "#2d6a4f" }} />
-                  <span className="text-sm text-muted-foreground">Income</span>
+                  <span className="text-sm text-muted-foreground">{t("home.income")}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded" style={{ backgroundColor: "#d4183d" }} />
-                  <span className="text-sm text-muted-foreground">Expenses</span>
+                  <span className="text-sm text-muted-foreground">{t("home.expenses")}</span>
                 </div>
               </div>
             </div>
@@ -552,7 +565,7 @@ export default function Analytics() {
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
               <div className="flex items-center gap-2 mb-4">
                 <Calendar className="size-5 text-primary" />
-                <h3>Daily Spending Pattern (Last 14 Days)</h3>
+                <h3>{t("analytics.dailySpendingPattern")}</h3>
               </div>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={dailySpending}>
@@ -573,7 +586,7 @@ export default function Analytics() {
 
             <div className="grid md:grid-cols-2 gap-6">
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-                <h3 className="mb-4">Budget vs Actual</h3>
+                <h3 className="mb-4">{t("analytics.budgetVsActual")}</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={budgetComparison}>
                     <XAxis dataKey="category" stroke="#52796f" fontSize={12} />
@@ -592,7 +605,7 @@ export default function Analytics() {
               </div>
 
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
-                <h3 className="mb-4">Category Trends</h3>
+                <h3 className="mb-4">{t("analytics.categoryTrends")}</h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={categoryTrends}>
                     <XAxis dataKey="month" stroke="#52796f" />
@@ -619,7 +632,7 @@ export default function Analytics() {
                   {trackedTrendCategories.map((category, index) => (
                     <div key={category.id} className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
-                      <span className="text-sm text-muted-foreground">{category.name}</span>
+                      <span className="text-sm text-muted-foreground">{localizeCategory(category.name)}</span>
                     </div>
                   ))}
                 </div>

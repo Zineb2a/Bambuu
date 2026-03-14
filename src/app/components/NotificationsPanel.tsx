@@ -18,6 +18,7 @@ import {
 } from "../lib/finance";
 import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
 import { getUserSettings } from "../lib/settings";
+import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal, Subscription } from "../types/finance";
 import type { UserSettings } from "../types/settings";
 import type { Transaction } from "../types/transactions";
@@ -45,6 +46,7 @@ const defaultSettings: UserSettings = {
 
 export default function NotificationsPanel() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
@@ -138,11 +140,11 @@ export default function NotificationsPanel() {
         items.push({
           id: `goal-${pinnedGoal.id}`,
           type: progress >= 100 ? "success" : "info",
-          title: progress >= 100 ? "Goal Completed" : "Goal Progress",
+          title: progress >= 100 ? t("notifications.goalCompleted") : t("notifications.goalProgress"),
           message:
             progress >= 100
-              ? `${pinnedGoal.name} is fully funded.`
-              : `You're now ${progress.toFixed(1)}% toward ${pinnedGoal.name}.`,
+              ? t("notifications.goalFunded", { name: pinnedGoal.name })
+              : t("notifications.goalToward", { progress: progress.toFixed(1), name: pinnedGoal.name }),
           time: formatDistanceToNow(new Date(pinnedGoal.createdAt), { addSuffix: true }),
           read: false,
         });
@@ -160,12 +162,18 @@ export default function NotificationsPanel() {
           items.push({
             id: `budget-${category.id}`,
             type: spent > displayBudget ? "alert" : "warning",
-            title: spent > displayBudget ? "Over Budget" : "Budget Alert",
+            title: spent > displayBudget ? t("notifications.overBudget") : t("notifications.budgetAlert"),
             message:
               spent > displayBudget
-                ? `${category.name} is over budget by ${formatCurrency(spent - displayBudget, settings.currency)}.`
-                : `${category.name} has used ${((spent / displayBudget) * 100).toFixed(0)}% of its monthly budget.`,
-            time: "this month",
+                ? t("notifications.overBudgetMessage", {
+                    name: category.name,
+                    amount: formatCurrency(spent - displayBudget, settings.currency),
+                  })
+                : t("notifications.budgetUsedMessage", {
+                    name: category.name,
+                    progress: ((spent / displayBudget) * 100).toFixed(0),
+                  }),
+            time: t("notifications.thisMonth"),
             read: false,
           });
         }
@@ -179,8 +187,13 @@ export default function NotificationsPanel() {
           items.push({
             id: `subscription-${subscription.id}`,
             type: "alert",
-            title: "Upcoming Renewal",
-            message: `${subscription.name} (${formatCurrency(getSubscriptionAmountInCurrency(subscription, settings.currency), settings.currency)}) renews in ${daysUntilRenewal} day${daysUntilRenewal === 1 ? "" : "s"}.`,
+            title: t("notifications.upcomingRenewal"),
+            message: t("notifications.renewsIn", {
+              name: subscription.name,
+              amount: formatCurrency(getSubscriptionAmountInCurrency(subscription, settings.currency), settings.currency),
+              days: daysUntilRenewal,
+              suffix: daysUntilRenewal === 1 ? "" : "s",
+            }),
             time: `renews ${formatDistanceToNow(new Date(subscription.renewalDate), { addSuffix: true })}`,
             read: false,
           });
@@ -221,12 +234,21 @@ export default function NotificationsPanel() {
       items.push({
         id: "summary-monthly",
         type: delta <= 0 ? "success" : "info",
-        title: "Spending Summary",
+        title: t("notifications.spendingSummary"),
         message:
           thisMonthIncome > 0
-            ? `Income ${formatCurrency(thisMonthIncome, settings.currency)}, expenses ${formatCurrency(thisMonthExpenses, settings.currency)}. ${delta <= 0 ? `You're spending ${Math.abs(delta).toFixed(1)}% less than last month.` : `You're spending ${delta.toFixed(1)}% more than last month.`}`
-            : `Expenses total ${formatCurrency(thisMonthExpenses, settings.currency)} this month.`,
-        time: "updated recently",
+            ? t("notifications.summaryWithIncome", {
+                income: formatCurrency(thisMonthIncome, settings.currency),
+                expenses: formatCurrency(thisMonthExpenses, settings.currency),
+                trend:
+                  delta <= 0
+                    ? t("notifications.spendingLess", { delta: Math.abs(delta).toFixed(1) })
+                    : t("notifications.spendingMore", { delta: delta.toFixed(1) }),
+              })
+            : t("notifications.summaryExpensesOnly", {
+                expenses: formatCurrency(thisMonthExpenses, settings.currency),
+              }),
+        time: t("notifications.updatedRecently"),
         read: false,
       });
     }
@@ -236,8 +258,11 @@ export default function NotificationsPanel() {
       items.push({
         id: `income-${latestIncome.id}`,
         type: "success",
-        title: "Income Recorded",
-        message: `${latestIncome.name} added ${formatCurrency(getTransactionAmountInCurrency(latestIncome, settings.currency), settings.currency)} to your account.`,
+        title: t("notifications.incomeRecorded"),
+        message: t("notifications.incomeAdded", {
+          name: latestIncome.name,
+          amount: formatCurrency(getTransactionAmountInCurrency(latestIncome, settings.currency), settings.currency),
+        }),
         time: formatDistanceToNow(parseTransactionDate(latestIncome.occurredOn), { addSuffix: true }),
         read: false,
       });
@@ -317,13 +342,13 @@ export default function NotificationsPanel() {
           <div className="fixed top-16 right-4 w-96 max-w-[calc(100vw-2rem)] bg-card rounded-2xl shadow-2xl border border-border z-50 max-h-[80vh] flex flex-col">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
               <div>
-                <h3>Notifications</h3>
-                {unreadCount > 0 ? <p className="text-sm text-muted-foreground">{unreadCount} unread</p> : null}
+                <h3>{t("notifications.title")}</h3>
+                {unreadCount > 0 ? <p className="text-sm text-muted-foreground">{t("notifications.unread", { count: unreadCount })}</p> : null}
               </div>
               <div className="flex items-center gap-2">
                 {unreadCount > 0 ? (
                   <button onClick={markAllAsRead} className="text-xs text-primary hover:underline">
-                    Mark all read
+                    {t("notifications.markAllRead")}
                   </button>
                 ) : null}
                 <button onClick={() => setIsOpen(false)} className="hover:bg-muted p-2 rounded-lg transition-colors">
@@ -336,7 +361,7 @@ export default function NotificationsPanel() {
               {derivedNotifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <Bell className="size-12 mx-auto text-muted-foreground/50 mb-3" />
-                  <p className="text-muted-foreground">No notifications yet</p>
+                  <p className="text-muted-foreground">{t("notifications.empty")}</p>
                 </div>
               ) : (
                 <div className="p-3 space-y-2">

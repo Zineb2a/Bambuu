@@ -5,10 +5,12 @@ import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
 
 export default function Income() {
   const { user } = useAuth();
+  const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
   const [incomeStreams, setIncomeStreams] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,20 +58,20 @@ export default function Income() {
         <div className="bg-gradient-to-br from-primary to-[#52b788] text-white rounded-2xl p-6 mb-6 shadow-lg">
           <div className="flex items-center gap-2 mb-2 opacity-90">
             <TrendingUp className="size-5" />
-            <span className="text-sm">Total Income</span>
+            <span className="text-sm">{t("incomePage.totalIncome")}</span>
           </div>
           <div className="text-4xl">{formatCurrency(totalIncome, currency)}</div>
         </div>
 
-        <h3 className="mb-4">Income Sources</h3>
+        <h3 className="mb-4">{t("incomePage.incomeSources")}</h3>
         <div className="space-y-3">
           {isLoading ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              Loading income...
+              {t("incomePage.loading")}
             </div>
           ) : incomeStreams.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              No income transactions yet.
+              {t("incomePage.empty")}
             </div>
           ) : (
             incomeStreams.map((income) => (
@@ -81,9 +83,11 @@ export default function Income() {
                     </div>
                     <div>
                       <div className="font-medium">{income.name}</div>
-                      <div className="text-sm text-muted-foreground">{income.category}</div>
+                      <div className="text-sm text-muted-foreground">{localizeCategory(income.category)}</div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {formatTransactionDate(income.occurredOn)} • Paid in {formatCurrencyWithCode(income.originalAmount, income.currency)}
+                        {formatTransactionDate(income.occurredOn)} • {t("common.paidIn", {
+                          amount: formatCurrencyWithCode(income.originalAmount, income.currency),
+                        })}
                       </div>
                     </div>
                   </div>
@@ -100,9 +104,9 @@ export default function Income() {
               <DollarSign className="size-5" />
             </div>
             <div>
-              <h4 className="mb-2">Income Snapshot</h4>
+              <h4 className="mb-2">{t("incomePage.snapshotTitle")}</h4>
               <p className="text-sm text-muted-foreground">
-                This page is now driven by your real income transactions. Add more income entries from the global + button to keep it current.
+                {t("incomePage.snapshotDescription")}
               </p>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X, DollarSign, Calendar, Tag, FileText, Repeat, Globe } from "lucide-react";
 import { convertCurrency, EXCHANGE_RATES } from "../lib/currency";
+import { useI18n } from "../providers/I18nProvider";
 
 interface AddTransactionModalProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface AddTransactionModalProps {
 }
 
 export default function AddTransactionModal({ isOpen, onClose, onAddTransaction, defaultCurrency = 'USD', exchangeRates }: AddTransactionModalProps) {
+  const { t, localizeCategory, localizeFrequency } = useI18n();
   const [type, setType] = useState<'income' | 'expense'>('expense');
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -67,7 +69,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
     e.preventDefault();
     
     if (!name || !amount || !category) {
-      alert('Please fill in all fields');
+      alert(t("addTransaction.fillAllFields"));
       return;
     }
 
@@ -106,18 +108,18 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-2xl shadow-2xl max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
-          <h2 className="text-white">Add Transaction</h2>
+        <div className="bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
+          <h2 className="text-white">{t("addTransaction.title")}</h2>
           <button onClick={onClose} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
             <X className="size-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* Type Toggle */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:col-span-2">
             <button
               type="button"
               onClick={() => setType('expense')}
@@ -127,7 +129,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                   : 'bg-muted text-muted-foreground hover:bg-secondary'
               }`}
             >
-              Expense
+              {t("addTransaction.expense")}
             </button>
             <button
               type="button"
@@ -138,7 +140,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                   : 'bg-muted text-muted-foreground hover:bg-secondary'
               }`}
             >
-              Income
+              {t("addTransaction.income")}
             </button>
           </div>
 
@@ -146,13 +148,13 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <FileText className="size-4" />
-              Description
+              {t("addTransaction.description")}
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={type === 'expense' ? 'e.g., Coffee' : 'e.g., Part-time Job'}
+              placeholder={type === 'expense' ? t("addTransaction.expensePlaceholder") : t("addTransaction.incomePlaceholder")}
               className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               required
             />
@@ -162,7 +164,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <DollarSign className="size-4" />
-              Amount
+              {t("addTransaction.amount")}
             </label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbols[selectedCurrency]}</span>
@@ -182,7 +184,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <Tag className="size-4" />
-              Category
+              {t("addTransaction.category")}
             </label>
             <select
               value={category}
@@ -190,9 +192,9 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
               className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
               required
             >
-              <option value="">Select category</option>
+              <option value="">{t("addTransaction.selectCategory")}</option>
               {(type === 'expense' ? expenseCategories : incomeCategories).map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat} value={cat}>{localizeCategory(cat)}</option>
               ))}
             </select>
           </div>
@@ -201,7 +203,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <Calendar className="size-4" />
-              Date
+              {t("addTransaction.date")}
             </label>
             <input
               type="date"
@@ -216,7 +218,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <Globe className="size-4" />
-              Payment Currency
+              {t("addTransaction.paymentCurrency")}
             </label>
             <select
               value={selectedCurrency}
@@ -233,12 +235,16 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
             {/* Conversion Preview */}
             {selectedCurrency !== defaultCurrency && amount && parseFloat(amount) > 0 && (
               <div className="mt-3 p-3 bg-gradient-to-r from-primary/10 to-[#52b788]/10 border border-primary/20 rounded-lg">
-                <div className="text-sm text-muted-foreground mb-1">Converted to {defaultCurrency}:</div>
+                <div className="text-sm text-muted-foreground mb-1">{t("addTransaction.convertedTo", { currency: defaultCurrency })}</div>
                 <div className="text-lg text-primary">
                   {currencySymbols[selectedCurrency]}{amount} {selectedCurrency} = {currencySymbols[defaultCurrency]}{getConvertedAmount()} {defaultCurrency}
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  Rate: 1 {selectedCurrency} = {(rates[defaultCurrency] / rates[selectedCurrency]).toFixed(4)} {defaultCurrency}
+                  {t("addTransaction.rate", {
+                    from: selectedCurrency,
+                    value: (rates[defaultCurrency] / rates[selectedCurrency]).toFixed(4),
+                    to: defaultCurrency,
+                  })}
                 </div>
               </div>
             )}
@@ -248,7 +254,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <div>
             <label className="flex items-center gap-2 mb-2 text-sm text-muted-foreground">
               <Repeat className="size-4" />
-              Recurring Transaction
+              {t("addTransaction.recurringTransaction")}
             </label>
             <div className="space-y-3">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -258,12 +264,12 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                   onChange={(e) => setIsRecurring(e.target.checked)}
                   className="w-4 h-4 rounded border-border text-primary focus:ring-primary focus:ring-offset-0 cursor-pointer"
                 />
-                <span className="text-sm">Make this a recurring transaction</span>
+                <span className="text-sm">{t("addTransaction.makeRecurring")}</span>
               </label>
               
               {isRecurring && (
                 <div className="pl-6">
-                  <label className="text-xs text-muted-foreground mb-2 block">Frequency</label>
+                  <label className="text-xs text-muted-foreground mb-2 block">{t("addTransaction.frequency")}</label>
                   <div className="grid grid-cols-2 gap-2">
                     {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => (
                       <button
@@ -276,14 +282,14 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                             : 'bg-muted text-muted-foreground hover:bg-secondary'
                         }`}
                       >
-                        {freq}
+                        {localizeFrequency(freq)}
                       </button>
                     ))}
                   </div>
                   {isRecurring && (
                     <div className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">
                       <p className="text-xs text-muted-foreground">
-                        This transaction will repeat {recurringFrequency}
+                        {t("addTransaction.repeats", { frequency: localizeFrequency(recurringFrequency).toLowerCase() })}
                       </p>
                     </div>
                   )}
@@ -296,7 +302,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
           <button
             type="submit"
             disabled={isSubmitting}
-            className={`w-full py-3 rounded-lg transition-all shadow-md ${
+            className={`w-full py-3 rounded-lg transition-all shadow-md md:col-span-2 ${
               isSubmitting
                 ? 'bg-muted text-muted-foreground cursor-not-allowed'
                 : type === 'expense'
@@ -304,7 +310,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                 : 'bg-primary text-primary-foreground hover:opacity-90'
             }`}
           >
-            {isSubmitting ? 'Saving...' : `Add ${type === 'expense' ? 'Expense' : 'Income'}`}
+            {isSubmitting ? t("common.saving") : type === 'expense' ? t("addTransaction.addExpense") : t("addTransaction.addIncome")}
           </button>
         </form>
       </div>

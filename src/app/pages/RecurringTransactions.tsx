@@ -22,6 +22,7 @@ import {
   updateTransaction,
 } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
 
 const expenseCategories = ["Housing", "Food", "Books", "Transport", "Entertainment", "Shopping", "Other"];
@@ -29,6 +30,7 @@ const incomeCategories = ["Job", "Scholarship", "Allowance", "Gift", "Other"];
 
 export default function RecurringTransactions() {
   const { user } = useAuth();
+  const { t, localizeCategory, localizeFrequency } = useI18n();
   const currency = useUserCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,7 +110,7 @@ export default function RecurringTransactions() {
   };
 
   const handleDelete = async (transactionId: string) => {
-    if (!user || !confirm("Are you sure you want to delete this recurring transaction?")) {
+    if (!user || !confirm(t("recurringPage.confirmDelete"))) {
       return;
     }
 
@@ -176,7 +178,7 @@ export default function RecurringTransactions() {
         <div>
           <div className="font-medium">{transaction.name}</div>
           <div className="text-sm text-muted-foreground">
-            {transaction.category} • {transaction.recurringFrequency}
+            {localizeCategory(transaction.category)} • {localizeFrequency(transaction.recurringFrequency ?? "monthly")}
           </div>
         </div>
         <div className={`text-lg ${transaction.type === "income" ? "text-primary" : "text-foreground"}`}>
@@ -187,7 +189,7 @@ export default function RecurringTransactions() {
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
           <Calendar className="size-3 inline mr-1" />
-          {formatTransactionDate(transaction.occurredOn)} • Paid in {formatCurrencyWithCode(transaction.originalAmount, transaction.currency)}
+          {formatTransactionDate(transaction.occurredOn)} • {t("recurringPage.paidIn", { amount: formatCurrencyWithCode(transaction.originalAmount, transaction.currency) })}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -200,7 +202,7 @@ export default function RecurringTransactions() {
             onClick={() => handleToggleActive(transaction)}
             className={`px-3 py-1 rounded-lg text-sm transition-colors ${paused ? "bg-primary text-primary-foreground" : "bg-amber-100 text-amber-700 hover:bg-amber-200"}`}
           >
-            {paused ? "Resume" : "Pause"}
+            {paused ? t("recurringPage.resume") : t("recurringPage.pause")}
           </button>
           <button
             onClick={() => handleDelete(transaction.id)}
@@ -224,18 +226,18 @@ export default function RecurringTransactions() {
           className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
         >
           <Plus className="size-5" />
-          Add Recurring Transaction
+          {t("recurringPage.addRecurring")}
         </button>
 
         <div className="bg-card border border-border rounded-xl p-6">
           <h3 className="mb-4 flex items-center gap-2">
             <Repeat className="size-5 text-primary" />
-            Active Recurring ({activeRecurring.length})
+            {t("recurringPage.activeRecurring", { count: activeRecurring.length })}
           </h3>
           {isLoading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading recurring transactions...</div>
+            <div className="text-center py-8 text-muted-foreground">{t("recurringPage.loading")}</div>
           ) : activeRecurring.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No active recurring transactions</div>
+            <div className="text-center py-8 text-muted-foreground">{t("recurringPage.noActive")}</div>
           ) : (
             <div className="space-y-3">{activeRecurring.map((transaction) => renderCard(transaction))}</div>
           )}
@@ -243,7 +245,7 @@ export default function RecurringTransactions() {
 
         {inactiveRecurring.length > 0 ? (
           <div className="bg-card border border-border rounded-xl p-6">
-            <h3 className="mb-4 text-muted-foreground">Paused ({inactiveRecurring.length})</h3>
+            <h3 className="mb-4 text-muted-foreground">{t("recurringPage.paused", { count: inactiveRecurring.length })}</h3>
             <div className="space-y-3">{inactiveRecurring.map((transaction) => renderCard(transaction, true))}</div>
           </div>
         ) : null}
@@ -254,9 +256,9 @@ export default function RecurringTransactions() {
               <TrendingUp className="size-5" />
             </div>
             <div>
-              <h4 className="mb-2">Recurring transactions are real now</h4>
+              <h4 className="mb-2">{t("recurringPage.infoTitle")}</h4>
               <p className="text-sm text-muted-foreground">
-                These entries are stored in Supabase as recurring transactions and can be paused, resumed, edited, and deleted.
+                {t("recurringPage.infoMessage")}
               </p>
             </div>
           </div>
@@ -266,7 +268,7 @@ export default function RecurringTransactions() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full">
               <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <h2 className="text-white">{editingId ? "Edit Recurring Transaction" : "Add Recurring Transaction"}</h2>
+                <h2 className="text-white">{editingId ? t("recurringPage.editRecurring") : t("recurringPage.addRecurring")}</h2>
                 <button onClick={resetForm} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
                   <X className="size-5" />
                 </button>
@@ -281,7 +283,7 @@ export default function RecurringTransactions() {
                       formData.type === "expense" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    Expense
+                    {t("recurringPage.expense")}
                   </button>
                   <button
                     type="button"
@@ -290,7 +292,7 @@ export default function RecurringTransactions() {
                       formData.type === "income" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    Income
+                    {t("recurringPage.income")}
                   </button>
                 </div>
 
@@ -298,7 +300,7 @@ export default function RecurringTransactions() {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData((current) => ({ ...current, name: e.target.value }))}
-                  placeholder="Name"
+                  placeholder={t("recurringPage.name")}
                   className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
 
@@ -307,7 +309,7 @@ export default function RecurringTransactions() {
                   step="0.01"
                   value={formData.amount}
                   onChange={(e) => setFormData((current) => ({ ...current, amount: e.target.value }))}
-                  placeholder={`Amount in ${currency}`}
+                  placeholder={t("recurringPage.amountIn", { currency })}
                   className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
 
@@ -316,10 +318,10 @@ export default function RecurringTransactions() {
                   onChange={(e) => setFormData((current) => ({ ...current, category: e.target.value }))}
                   className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="">Select category</option>
+                  <option value="">{t("recurringPage.selectCategory")}</option>
                   {(formData.type === "expense" ? expenseCategories : incomeCategories).map((category) => (
                     <option key={category} value={category}>
-                      {category}
+                      {localizeCategory(category)}
                     </option>
                   ))}
                 </select>
@@ -345,7 +347,7 @@ export default function RecurringTransactions() {
                   className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                 >
                   {editingId ? <Check className="size-4" /> : <Plus className="size-4" />}
-                  {editingId ? "Save Changes" : "Add Recurring Transaction"}
+                  {editingId ? t("recurringPage.saveChanges") : t("recurringPage.addRecurring")}
                 </button>
               </div>
             </div>

@@ -33,10 +33,12 @@ import {
   updateTransaction,
 } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
 
 export default function Transactions() {
   const { user } = useAuth();
+  const { t, localizeCategory, localizeFrequency } = useI18n();
   const currency = useUserCurrency();
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -300,7 +302,7 @@ export default function Transactions() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search transactions..."
+            placeholder={t("transactions.search")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-input-background pl-11 pr-4 py-3 rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
@@ -317,12 +319,12 @@ export default function Transactions() {
             className="flex items-center justify-center gap-2 px-4 py-3 bg-card border border-border rounded-lg hover:bg-secondary transition-colors"
           >
             <Repeat className="size-5 text-primary" />
-            <span>Recurring Transactions</span>
+            <span>{t("transactions.recurringTransactions")}</span>
           </Link>
           <div className="relative group">
             <button className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity">
               <Download className="size-5" />
-              <span>Export Data</span>
+              <span>{t("transactions.exportData")}</span>
             </button>
             <div className="absolute right-0 mt-2 w-48 bg-card border border-border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
               <button
@@ -330,14 +332,14 @@ export default function Transactions() {
                 className="w-full px-4 py-3 text-left hover:bg-secondary rounded-t-lg transition-colors flex items-center gap-2"
               >
                 <Download className="size-4" />
-                Export as CSV
+                {t("transactions.exportCsv")}
               </button>
               <button
                 onClick={handleExportJSON}
                 className="w-full px-4 py-3 text-left hover:bg-secondary rounded-b-lg transition-colors flex items-center gap-2"
               >
                 <Download className="size-4" />
-                Export as JSON
+                {t("transactions.exportJson")}
               </button>
             </div>
           </div>
@@ -345,21 +347,21 @@ export default function Transactions() {
 
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-card border border-border rounded-xl p-4">
-            <div className="text-sm text-muted-foreground mb-1">Total</div>
+            <div className="text-sm text-muted-foreground mb-1">{t("transactions.total")}</div>
             <div className="text-2xl">{filteredTransactions.length}</div>
-            <div className="text-xs text-muted-foreground">transactions</div>
+            <div className="text-xs text-muted-foreground">{t("transactions.transactionsSuffix")}</div>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
               <TrendingUp className="size-3" />
-              Income
+              {t("home.income")}
             </div>
             <div className="text-2xl text-primary">{formatCurrency(totalIncome, currency)}</div>
           </div>
           <div className="bg-card border border-border rounded-xl p-4">
             <div className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
               <TrendingDown className="size-3" />
-              Expenses
+              {t("home.expenses")}
             </div>
             <div className="text-2xl text-destructive">{formatCurrency(totalExpenses, currency)}</div>
           </div>
@@ -371,11 +373,11 @@ export default function Transactions() {
             className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-accent transition-colors mb-4"
           >
             <Filter className="size-4" />
-            Filters
+            {t("transactions.filters")}
             <ChevronDown className={`size-4 transition-transform ${showFilters ? "rotate-180" : ""}`} />
             {hasActiveFilters ? (
               <span className="ml-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
-                Active
+                {t("transactions.active")}
               </span>
             ) : null}
           </button>
@@ -383,7 +385,7 @@ export default function Transactions() {
           {showFilters ? (
             <div className="bg-card border border-border rounded-xl p-6 space-y-4">
               <div>
-                <label className="text-sm text-muted-foreground mb-2 block">Transaction Type</label>
+                <label className="text-sm text-muted-foreground mb-2 block">{t("transactions.transactionType")}</label>
                 <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => setSelectedType("all")}
@@ -393,7 +395,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    All
+                    {t("common.all")}
                   </button>
                   <button
                     onClick={() => setSelectedType("income")}
@@ -403,7 +405,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    Income
+                    {t("home.income")}
                   </button>
                   <button
                     onClick={() => setSelectedType("expense")}
@@ -413,22 +415,22 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    Expense
+                    {t("addTransaction.expense")}
                   </button>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm text-muted-foreground mb-2 block">Category</label>
+                <label className="text-sm text-muted-foreground mb-2 block">{t("transactions.category")}</label>
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   className="w-full px-4 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="all">All Categories</option>
+                  <option value="all">{t("transactions.allCategories")}</option>
                   {categories.map((category) => (
                     <option key={category} value={category}>
-                      {category}
+                      {localizeCategory(category)}
                     </option>
                   ))}
                 </select>
@@ -437,7 +439,7 @@ export default function Transactions() {
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                   <Calendar className="size-4" />
-                  Date Range
+                  {t("transactions.dateRange")}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   <button
@@ -448,7 +450,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    All Time
+                    {t("transactions.allTime")}
                   </button>
                   <button
                     onClick={() => setSelectedDateRange("week")}
@@ -458,7 +460,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    Last Week
+                    {t("transactions.lastWeek")}
                   </button>
                   <button
                     onClick={() => setSelectedDateRange("month")}
@@ -468,7 +470,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    Last Month
+                    {t("transactions.lastMonth")}
                   </button>
                   <button
                     onClick={() => setSelectedDateRange("quarter")}
@@ -478,7 +480,7 @@ export default function Transactions() {
                         : "bg-muted text-muted-foreground hover:bg-secondary"
                     }`}
                   >
-                    Last Quarter
+                    {t("transactions.lastQuarter")}
                   </button>
                 </div>
               </div>
@@ -486,19 +488,19 @@ export default function Transactions() {
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                   <DollarSign className="size-4" />
-                  Amount Range
+                  {t("transactions.amountRange")}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     type="number"
-                    placeholder="Min amount"
+                    placeholder={t("transactions.minAmount")}
                     value={minAmount}
                     onChange={(e) => setMinAmount(e.target.value)}
                     className="w-full px-4 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                   <input
                     type="number"
-                    placeholder="Max amount"
+                    placeholder={t("transactions.maxAmount")}
                     value={maxAmount}
                     onChange={(e) => setMaxAmount(e.target.value)}
                     className="w-full px-4 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -512,7 +514,7 @@ export default function Transactions() {
                   className="w-full py-2 text-sm text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <X className="size-4" />
-                  Clear All Filters
+                  {t("transactions.clearAllFilters")}
                 </button>
               ) : null}
             </div>
@@ -522,15 +524,15 @@ export default function Transactions() {
         <div className="space-y-3">
           {isLoading ? (
             <div className="bg-card border border-border rounded-xl p-12 text-center">
-              <h3 className="mb-2">Loading transactions</h3>
-              <p className="text-sm text-muted-foreground">Fetching your latest data from Supabase.</p>
+              <h3 className="mb-2">{t("transactions.loadingTitle")}</h3>
+              <p className="text-sm text-muted-foreground">{t("transactions.loadingDescription")}</p>
             </div>
           ) : filteredTransactions.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-12 text-center">
               <ShoppingCart className="size-12 mx-auto text-muted-foreground/50 mb-3" />
-              <h3 className="mb-2">No transactions found</h3>
+              <h3 className="mb-2">{t("transactions.emptyTitle")}</h3>
               <p className="text-sm text-muted-foreground">
-                Try adjusting your filters or search query.
+                {t("transactions.emptyDescription")}
               </p>
             </div>
           ) : (
@@ -551,14 +553,14 @@ export default function Transactions() {
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          placeholder="Name"
+                          placeholder={t("transactions.name")}
                           className="px-3 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         />
                         <input
                           type="number"
                           value={editAmount}
                           onChange={(e) => setEditAmount(e.target.value)}
-                          placeholder="Amount"
+                          placeholder={t("transactions.amount")}
                           className="px-3 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         />
                         <select
@@ -566,10 +568,10 @@ export default function Transactions() {
                           onChange={(e) => setEditCategory(e.target.value)}
                           className="px-3 py-2 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                         >
-                          <option value="">Select Category</option>
+                          <option value="">{t("transactions.selectCategory")}</option>
                           {categories.map((category) => (
                             <option key={category} value={category}>
-                              {category}
+                              {localizeCategory(category)}
                             </option>
                           ))}
                         </select>
@@ -581,14 +583,14 @@ export default function Transactions() {
                         className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
                       >
                         <Check className="size-4" />
-                        Save
+                        {t("transactions.save")}
                       </button>
                       <button
                         onClick={cancelEdit}
                         className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-secondary transition-colors"
                       >
                         <X className="size-4" />
-                        Cancel
+                        {t("common.cancel")}
                       </button>
                     </div>
                   </div>
@@ -597,8 +599,8 @@ export default function Transactions() {
                     <div className="flex items-center gap-3">
                       <Trash2 className="size-6 text-destructive" />
                       <div>
-                        <div className="font-medium text-destructive">Delete this transaction?</div>
-                        <div className="text-sm text-muted-foreground">This action cannot be undone.</div>
+                        <div className="font-medium text-destructive">{t("transactions.deletePrompt")}</div>
+                        <div className="text-sm text-muted-foreground">{t("transactions.deleteDescription")}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -607,14 +609,14 @@ export default function Transactions() {
                         className="flex items-center gap-2 px-4 py-2 bg-destructive text-destructive-foreground rounded-lg hover:opacity-90 transition-opacity"
                       >
                         <Trash2 className="size-4" />
-                        Delete
+                        {t("common.delete")}
                       </button>
                       <button
                         onClick={() => setDeleteConfirmId(null)}
                         className="flex items-center gap-2 px-4 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-secondary transition-colors"
                       >
                         <X className="size-4" />
-                        Cancel
+                        {t("common.cancel")}
                       </button>
                     </div>
                   </div>
@@ -634,19 +636,23 @@ export default function Transactions() {
                           {transaction.isRecurring ? (
                             <span
                               className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full border border-primary/20"
-                              title={`Recurring ${transaction.recurringFrequency}`}
+                              title={t("transactions.recurringTitle", {
+                                frequency: localizeFrequency(transaction.recurringFrequency ?? "monthly"),
+                              })}
                             >
                               <Repeat className="size-3" />
-                              {transaction.recurringFrequency}
+                              {localizeFrequency(transaction.recurringFrequency ?? "monthly")}
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-sm text-muted-foreground">{transaction.category}</div>
+                        <div className="text-sm text-muted-foreground">{localizeCategory(transaction.category)}</div>
                         <div className="text-xs text-muted-foreground mt-1">
                           {formatTransactionDate(transaction.occurredOn)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          Paid in {formatCurrencyWithCode(transaction.originalAmount, transaction.currency)}
+                          {t("common.paidIn", {
+                            amount: formatCurrencyWithCode(transaction.originalAmount, transaction.currency),
+                          })}
                         </div>
                       </div>
                     </div>
@@ -659,14 +665,14 @@ export default function Transactions() {
                         <button
                           onClick={() => startEdit(transaction)}
                           className="p-2 bg-muted text-muted-foreground rounded-lg hover:bg-secondary transition-colors"
-                          title="Edit transaction"
+                          title={t("transactions.editTitle")}
                         >
                           <Edit2 className="size-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirmId(transaction.id)}
                           className="p-2 bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
-                          title="Delete transaction"
+                          title={t("transactions.deleteTitle")}
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -681,7 +687,10 @@ export default function Transactions() {
 
         {filteredTransactions.length > 0 ? (
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            Showing {filteredTransactions.length} of {allTransactions.length} transactions
+            {t("transactions.showingCount", {
+              shown: filteredTransactions.length,
+              total: allTransactions.length,
+            })}
           </div>
         ) : null}
       </div>

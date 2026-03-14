@@ -12,6 +12,7 @@ import {
   updateSubscription,
 } from "../lib/finance";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { Subscription } from "../types/finance";
 
 const categories = [
@@ -44,6 +45,7 @@ const emptySubscription: Omit<Subscription, "userId" | "createdAt"> = {
 
 export default function Subscriptions() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const currency = useUserCurrency();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -144,7 +146,7 @@ export default function Subscriptions() {
   };
 
   const handleCancelSubscription = async (id: string) => {
-    if (!user || !confirm("Are you sure you want to cancel this subscription?")) {
+    if (!user || !confirm(t("subscriptionsPage.confirmCancel"))) {
       return;
     }
 
@@ -165,30 +167,33 @@ export default function Subscriptions() {
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2>Subscriptions</h2>
-            <p className="text-muted-foreground mt-1">Track and manage your subscriptions</p>
+            <h2>{t("subscriptionsPage.title")}</h2>
+            <p className="text-muted-foreground mt-1">{t("subscriptionsPage.subtitle")}</p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
             className="bg-primary text-primary-foreground px-6 py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
           >
             <Plus className="size-5" />
-            Add Subscription
+            {t("subscriptionsPage.addSubscription")}
           </button>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-muted-foreground text-sm mb-1">Total Monthly Cost</p>
+              <p className="text-muted-foreground text-sm mb-1">{t("subscriptionsPage.totalMonthlyCost")}</p>
               <h1 className="text-4xl font-bold text-primary">{formatCurrency(totalMonthlyCost, currency)}</h1>
               <p className="text-sm text-muted-foreground mt-2">
-                {subscriptions.length} active subscription{subscriptions.length !== 1 ? "s" : ""}
+                {t("subscriptionsPage.activeCount", {
+                  count: subscriptions.length,
+                  suffix: subscriptions.length !== 1 ? "s" : "",
+                })}
               </p>
             </div>
             <img
               src={BRAND_LOGO_SRC}
-              alt="Bambu logo"
+              alt="Bambuu logo"
               className="h-16 w-16 object-contain"
             />
           </div>
@@ -197,11 +202,11 @@ export default function Subscriptions() {
         <div className="space-y-4">
           {isLoading ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              Loading subscriptions...
+              {t("subscriptionsPage.loading")}
             </div>
           ) : subscriptions.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              No subscriptions yet. Add the services you want to track.
+              {t("subscriptionsPage.empty")}
             </div>
           ) : (
             subscriptions.map((subscription) => (
@@ -229,14 +234,14 @@ export default function Subscriptions() {
                           className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
                         >
                           <Edit2 className="size-4" />
-                          Edit
+                          {t("subscriptionsPage.edit")}
                         </button>
                         <button
                           onClick={() => handleCancelSubscription(subscription.id)}
                           className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
                         >
                           <X className="size-4" />
-                          Cancel
+                          {t("subscriptionsPage.cancel")}
                         </button>
                       </div>
                     </div>
@@ -245,14 +250,14 @@ export default function Subscriptions() {
                       <div className="flex items-center gap-2">
                         <DollarSign className="size-4 text-muted-foreground" />
                         <span className="text-sm">
-                          <span className="font-medium">Monthly Cost</span>
+                          <span className="font-medium">{t("subscriptionsPage.monthlyCost")}</span>
                           <span className="ml-2 text-primary font-semibold">{formatCurrency(getSubscriptionAmountInCurrency(subscription, currency), currency)}</span>
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Calendar className="size-4 text-muted-foreground" />
                         <span className="text-sm">
-                          <span className="font-medium">Renews</span>
+                          <span className="font-medium">{t("subscriptionsPage.renews")}</span>
                           <span className="ml-2">{formatDate(subscription.renewalDate)}</span>
                         </span>
                       </div>
@@ -262,9 +267,9 @@ export default function Subscriptions() {
                       <div className="mt-4 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-2">
                         <AlertCircle className="size-5 text-amber-500 flex-shrink-0 mt-0.5" />
                         <div className="text-sm">
-                          <p className="font-medium text-amber-700 dark:text-amber-300">Student Discount Available!</p>
+                          <p className="font-medium text-amber-700 dark:text-amber-300">{t("subscriptionsPage.studentDiscountAvailable")}</p>
                           <p className="text-amber-600 dark:text-amber-400 mt-1">
-                            {subscription.name} offers a student discount. You could be saving money!
+                            {t("subscriptionsPage.studentDiscountMessage", { name: subscription.name })}
                           </p>
                         </div>
                       </div>
@@ -280,7 +285,7 @@ export default function Subscriptions() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold">Add Subscription</h3>
+                <h3 className="text-xl font-semibold">{t("subscriptionsPage.addSubscription")}</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="text-muted-foreground hover:text-foreground transition-colors"
@@ -291,7 +296,7 @@ export default function Subscriptions() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Icon</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.icon")}</label>
                   <div className="grid grid-cols-8 gap-2">
                     {emojis.map((emoji) => (
                       <button
@@ -310,24 +315,24 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Subscription Name</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.subscriptionName")}</label>
                   <input
                     type="text"
                     value={newSubscription.name}
                     onChange={(e) => setNewSubscription({ ...newSubscription, name: e.target.value })}
-                    placeholder="e.g., Netflix"
+                    placeholder={t("subscriptionsPage.subscriptionPlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Category</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.category")}</label>
                   <select
                     value={newSubscription.category}
                     onChange={(e) => setNewSubscription({ ...newSubscription, category: e.target.value })}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
-                    <option value="">Select a category</option>
+                    <option value="">{t("subscriptionsPage.selectCategory")}</option>
                     {categories.map((category) => (
                       <option key={category} value={category}>
                         {category}
@@ -337,7 +342,7 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Monthly Cost</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.monthlyCost")}</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                     <input
@@ -359,7 +364,7 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Next Renewal Date</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.nextRenewalDate")}</label>
                   <input
                     type="date"
                     value={newSubscription.renewalDate}
@@ -370,9 +375,9 @@ export default function Subscriptions() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-sm font-medium">Has Student Discount?</label>
+                    <label className="text-sm font-medium">{t("subscriptionsPage.hasStudentDiscount")}</label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Enable if this service offers student pricing
+                      {t("subscriptionsPage.studentPricingHelp")}
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -398,13 +403,13 @@ export default function Subscriptions() {
                     onClick={() => setShowAddModal(false)}
                     className="flex-1 bg-muted text-foreground px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
                   >
-                    Cancel
+                    {t("subscriptionsPage.cancel")}
                   </button>
                   <button
                     onClick={handleAddSubscription}
                     className="flex-1 bg-primary text-primary-foreground px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
                   >
-                    Add Subscription
+                    {t("subscriptionsPage.addSubscription")}
                   </button>
                 </div>
               </div>
@@ -416,7 +421,7 @@ export default function Subscriptions() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-card border border-border rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold">Edit Subscription</h3>
+                <h3 className="text-xl font-semibold">{t("subscriptionsPage.editSubscription")}</h3>
                 <button
                   onClick={() => {
                     setShowEditModal(false);
@@ -430,7 +435,7 @@ export default function Subscriptions() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Icon</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.icon")}</label>
                   <div className="grid grid-cols-8 gap-2">
                     {emojis.map((emoji) => (
                       <button
@@ -449,20 +454,20 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Subscription Name</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.subscriptionName")}</label>
                   <input
                     type="text"
                     value={editingSubscription.name}
                     onChange={(e) =>
                       setEditingSubscription({ ...editingSubscription, name: e.target.value })
                     }
-                    placeholder="e.g., Netflix"
+                    placeholder={t("subscriptionsPage.subscriptionPlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Category</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.category")}</label>
                   <select
                     value={editingSubscription.category}
                     onChange={(e) =>
@@ -470,7 +475,7 @@ export default function Subscriptions() {
                     }
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
-                    <option value="">Select a category</option>
+                    <option value="">{t("subscriptionsPage.selectCategory")}</option>
                     {categories.map((category) => (
                       <option key={category} value={category}>
                         {category}
@@ -480,7 +485,7 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Monthly Cost</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.monthlyCost")}</label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                     <input
@@ -502,7 +507,7 @@ export default function Subscriptions() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium mb-2 block">Next Renewal Date</label>
+                  <label className="text-sm font-medium mb-2 block">{t("subscriptionsPage.nextRenewalDate")}</label>
                   <input
                     type="date"
                     value={editingSubscription.renewalDate}
@@ -518,9 +523,9 @@ export default function Subscriptions() {
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <label className="text-sm font-medium">Has Student Discount?</label>
+                    <label className="text-sm font-medium">{t("subscriptionsPage.hasStudentDiscount")}</label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Enable if this service offers student pricing
+                      {t("subscriptionsPage.studentPricingHelp")}
                     </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -549,13 +554,13 @@ export default function Subscriptions() {
                     }}
                     className="flex-1 bg-muted text-foreground px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
                   >
-                    Cancel
+                    {t("subscriptionsPage.cancel")}
                   </button>
                   <button
                     onClick={handleEditSubscription}
                     className="flex-1 bg-primary text-primary-foreground px-4 py-3 rounded-lg hover:opacity-90 transition-opacity"
                   >
-                    Save Changes
+                    {t("subscriptionsPage.saveChanges")}
                   </button>
                 </div>
               </div>

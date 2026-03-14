@@ -1,17 +1,19 @@
 import { Link, useLocation } from "react-router";
 import { Home, BarChart3, TrendingDown, Target, TrendingUp, Settings, Repeat } from "lucide-react";
+import { useI18n } from "../providers/I18nProvider";
 
 export default function Navigation() {
   const location = useLocation();
+  const { t } = useI18n();
   
   const navItems = [
-    { to: "/", icon: Home, label: "Home" },
-    { to: "/analytics", icon: BarChart3, label: "Analytics" },
-    { to: "/transactions", icon: TrendingDown, label: "Transactions" },
-    { to: "/subscriptions", icon: Repeat, label: "Subscriptions" },
-    { to: "/investments", icon: TrendingUp, label: "Investments" },
-    { to: "/budget-goals", icon: Target, label: "Budget & Goals" },
-    { to: "/settings", icon: Settings, label: "Settings" },
+    { to: "/", icon: Home, label: t("nav.home") },
+    { to: "/analytics", icon: BarChart3, label: t("nav.analytics") },
+    { to: "/transactions", icon: TrendingDown, label: t("nav.transactions") },
+    { to: "/subscriptions", icon: Repeat, label: t("nav.subscriptions") },
+    { to: "/investments", icon: TrendingUp, label: t("nav.investments") },
+    { to: "/budget-goals", icon: Target, label: t("nav.budgetGoals") },
+    { to: "/settings", icon: Settings, label: t("nav.settings") },
   ];
 
   return (

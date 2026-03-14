@@ -26,6 +26,7 @@ import Layout from "../components/Layout";
 import { useAuth } from "../providers/AuthProvider";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
+import { useI18n } from "../providers/I18nProvider";
 import {
   createInvestment,
   getInvestmentPricesInCurrency,
@@ -41,6 +42,7 @@ const COLORS = ["#A0C878", "#DDEB9D", "#8AB060", "#6B9440"];
 
 export default function Investments() {
   const { user } = useAuth();
+  const { t, localizeInvestmentType } = useI18n();
   const currency = useUserCurrency();
   const [activeTab, setActiveTab] = useState<"portfolio" | "learn" | "calculator">("portfolio");
   const [showAddInvestment, setShowAddInvestment] = useState(false);
@@ -107,30 +109,30 @@ export default function Investments() {
 
   const portfolioData = [
     {
-      name: "Stocks",
+      name: t("investmentsPage.stocks"),
       value: portfolioWithTotals.filter((i) => i.type === "stock").reduce((sum, i) => sum + i.currentValue, 0),
     },
     {
-      name: "Crypto",
+      name: t("investmentsPage.crypto"),
       value: portfolioWithTotals.filter((i) => i.type === "crypto").reduce((sum, i) => sum + i.currentValue, 0),
     },
     {
-      name: "ETFs",
+      name: t("investmentsPage.etfs"),
       value: portfolioWithTotals.filter((i) => i.type === "etf").reduce((sum, i) => sum + i.currentValue, 0),
     },
     {
-      name: "Bonds",
+      name: t("investmentsPage.bonds"),
       value: portfolioWithTotals.filter((i) => i.type === "bond").reduce((sum, i) => sum + i.currentValue, 0),
     },
   ].filter((item) => item.value > 0);
 
   const performanceData = [
-    { month: "Jan", value: totalInvested * 0.82 },
-    { month: "Feb", value: totalInvested * 0.88 },
-    { month: "Mar", value: totalInvested * 0.93 },
-    { month: "Apr", value: totalInvested * 0.96 },
-    { month: "May", value: totalInvested * 1.02 },
-    { month: "Jun", value: currentValue },
+    { month: t("investmentsPage.jan"), value: totalInvested * 0.82 },
+    { month: t("investmentsPage.feb"), value: totalInvested * 0.88 },
+    { month: t("investmentsPage.mar"), value: totalInvested * 0.93 },
+    { month: t("investmentsPage.apr"), value: totalInvested * 0.96 },
+    { month: t("investmentsPage.may"), value: totalInvested * 1.02 },
+    { month: t("investmentsPage.jun"), value: currentValue },
   ];
 
   const getInvestmentIcon = (type: string) => {
@@ -166,47 +168,47 @@ export default function Investments() {
 
   const learningResources = [
     {
-      title: "What are Stocks?",
-      description: "Stocks represent ownership in a company. When you buy a stock, you become a shareholder.",
-      risk: "Medium to High",
-      example: "Buying Apple stock means owning a tiny piece of Apple Inc.",
+      title: t("investmentsPage.resources.stocks.title"),
+      description: t("investmentsPage.resources.stocks.description"),
+      risk: t("investmentsPage.resources.stocks.risk"),
+      example: t("investmentsPage.resources.stocks.example"),
       tips: [
-        "Start with companies you know and use",
-        "Diversify across different sectors",
-        "Think long-term (5+ years)",
+        t("investmentsPage.resources.stocks.tips.0"),
+        t("investmentsPage.resources.stocks.tips.1"),
+        t("investmentsPage.resources.stocks.tips.2"),
       ],
     },
     {
-      title: "Understanding Crypto",
-      description: "Cryptocurrency is digital money that uses blockchain technology. Bitcoin and Ethereum are popular examples.",
-      risk: "Very High",
-      example: "Bitcoin is like digital gold - limited supply, used as a store of value.",
+      title: t("investmentsPage.resources.crypto.title"),
+      description: t("investmentsPage.resources.crypto.description"),
+      risk: t("investmentsPage.resources.crypto.risk"),
+      example: t("investmentsPage.resources.crypto.example"),
       tips: [
-        "Only invest what you can afford to lose",
-        "Start with small amounts to learn",
-        "Research thoroughly before buying",
+        t("investmentsPage.resources.crypto.tips.0"),
+        t("investmentsPage.resources.crypto.tips.1"),
+        t("investmentsPage.resources.crypto.tips.2"),
       ],
     },
     {
-      title: "ETFs (Exchange-Traded Funds)",
-      description: "ETFs are like investment baskets containing many stocks. They offer instant diversification.",
-      risk: "Low to Medium",
-      example: "S&P 500 ETF contains stocks of 500 large US companies.",
+      title: t("investmentsPage.resources.etf.title"),
+      description: t("investmentsPage.resources.etf.description"),
+      risk: t("investmentsPage.resources.etf.risk"),
+      example: t("investmentsPage.resources.etf.example"),
       tips: [
-        "Great for beginners",
-        "Lower fees than mutual funds",
-        "Built-in diversification",
+        t("investmentsPage.resources.etf.tips.0"),
+        t("investmentsPage.resources.etf.tips.1"),
+        t("investmentsPage.resources.etf.tips.2"),
       ],
     },
     {
-      title: "Bonds Explained",
-      description: "Bonds are loans you give to companies or governments. They pay you interest over time.",
-      risk: "Low",
-      example: "Government bonds are very safe but offer lower returns.",
+      title: t("investmentsPage.resources.bond.title"),
+      description: t("investmentsPage.resources.bond.description"),
+      risk: t("investmentsPage.resources.bond.risk"),
+      example: t("investmentsPage.resources.bond.example"),
       tips: [
-        "Good for preserving capital",
-        "Provides steady income",
-        "Less volatile than stocks",
+        t("investmentsPage.resources.bond.tips.0"),
+        t("investmentsPage.resources.bond.tips.1"),
+        t("investmentsPage.resources.bond.tips.2"),
       ],
     },
   ];
@@ -250,7 +252,7 @@ export default function Investments() {
   };
 
   const handleDeleteInvestment = async (investmentId: string) => {
-    if (!user || !confirm("Are you sure you want to remove this investment?")) {
+    if (!user || !confirm(t("investmentsPage.confirmRemove"))) {
       return;
     }
 
@@ -263,8 +265,8 @@ export default function Investments() {
     <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl mb-2">Investment Learning Hub</h1>
-          <p className="text-muted-foreground">Track your real portfolio and keep the educational tools alongside it.</p>
+          <h1 className="text-3xl mb-2">{t("investmentsPage.title")}</h1>
+          <p className="text-muted-foreground">{t("investmentsPage.subtitle")}</p>
         </div>
 
         <div className="flex gap-2 mb-6 bg-card border border-border rounded-xl p-1">
@@ -276,7 +278,7 @@ export default function Investments() {
           >
             <div className="flex items-center justify-center gap-2">
               <Wallet className="size-4" />
-              <span>My Portfolio</span>
+              <span>{t("investmentsPage.myPortfolio")}</span>
             </div>
           </button>
           <button
@@ -287,7 +289,7 @@ export default function Investments() {
           >
             <div className="flex items-center justify-center gap-2">
               <BookOpen className="size-4" />
-              <span>Learn</span>
+              <span>{t("investmentsPage.learn")}</span>
             </div>
           </button>
           <button
@@ -298,7 +300,7 @@ export default function Investments() {
           >
             <div className="flex items-center justify-center gap-2">
               <Target className="size-4" />
-              <span>Calculator</span>
+              <span>{t("investmentsPage.calculator")}</span>
             </div>
           </button>
         </div>
@@ -307,22 +309,22 @@ export default function Investments() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-6">
-                <div className="text-sm text-muted-foreground mb-2">Total Invested</div>
+                <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.totalInvested")}</div>
                 <div className="text-2xl">{formatCurrency(totalInvested, currency)}</div>
               </div>
               <div className="bg-card border border-border rounded-xl p-6">
-                <div className="text-sm text-muted-foreground mb-2">Current Value</div>
+                <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.currentValue")}</div>
                 <div className="text-2xl text-primary">{formatCurrency(currentValue, currency)}</div>
               </div>
               <div className="bg-card border border-border rounded-xl p-6">
-                <div className="text-sm text-muted-foreground mb-2">Total Gain/Loss</div>
+                <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.totalGainLoss")}</div>
                 <div className={`text-2xl ${totalGain >= 0 ? "text-primary" : "text-destructive"}`}>
                   {totalGain >= 0 ? "+" : ""}
                   {formatCurrency(totalGain, currency)}
                 </div>
               </div>
               <div className="bg-card border border-border rounded-xl p-6">
-                <div className="text-sm text-muted-foreground mb-2">Return</div>
+                <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.return")}</div>
                 <div className={`text-2xl flex items-center gap-1 ${parseFloat(totalGainPercent) >= 0 ? "text-primary" : "text-destructive"}`}>
                   {parseFloat(totalGainPercent) >= 0 ? <ArrowUpRight className="size-5" /> : <ArrowDownRight className="size-5" />}
                   {totalGainPercent}%
@@ -334,7 +336,7 @@ export default function Investments() {
               <div className="bg-card border border-border rounded-xl p-6">
                 <h3 className="mb-4 flex items-center gap-2">
                   <PieChartIcon className="size-5 text-primary" />
-                  Portfolio Distribution
+                  {t("investmentsPage.portfolioDistribution")}
                 </h3>
                 {portfolioData.length > 0 ? (
                   <>
@@ -359,14 +361,14 @@ export default function Investments() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center text-muted-foreground py-8">No investments yet</div>
+                  <div className="text-center text-muted-foreground py-8">{t("investmentsPage.noInvestmentsYet")}</div>
                 )}
               </div>
 
               <div className="bg-card border border-border rounded-xl p-6">
                 <h3 className="mb-4 flex items-center gap-2">
                   <LineChart className="size-5 text-primary" />
-                  Portfolio Performance
+                  {t("investmentsPage.portfolioPerformance")}
                 </h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <AreaChart data={performanceData}>
@@ -389,31 +391,31 @@ export default function Investments() {
               <div className="p-6 border-b border-border flex items-center justify-between">
                 <h3 className="flex items-center gap-2">
                   <Wallet className="size-5 text-primary" />
-                  My Holdings
+                  {t("investmentsPage.myHoldings")}
                 </h3>
                 <button
                   onClick={() => setShowAddInvestment(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
                 >
                   <Plus className="size-4" />
-                  Add Investment
+                  {t("investmentsPage.addInvestment")}
                 </button>
               </div>
               <div className="divide-y divide-border">
                 {isLoading ? (
-                  <div className="p-12 text-center text-muted-foreground">Loading portfolio...</div>
+                  <div className="p-12 text-center text-muted-foreground">{t("investmentsPage.loadingPortfolio")}</div>
                 ) : portfolioWithTotals.length === 0 ? (
                   <div className="p-12 text-center">
                     <PieChartIcon className="size-12 mx-auto text-muted-foreground/50 mb-3" />
-                    <h3 className="mb-2">Start Your Investment Journey</h3>
+                    <h3 className="mb-2">{t("investmentsPage.startJourney")}</h3>
                     <p className="text-sm text-muted-foreground mb-4">
-                      Add your first investment to start tracking your real portfolio.
+                      {t("investmentsPage.startJourneyDescription")}
                     </p>
                     <button
                       onClick={() => setShowAddInvestment(true)}
                       className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
                     >
-                      Add Investment
+                      {t("investmentsPage.addInvestment")}
                     </button>
                   </div>
                 ) : (
@@ -439,10 +441,13 @@ export default function Investments() {
                             <div>
                               <div className="font-medium">{investment.name}</div>
                               <div className="text-sm text-muted-foreground">
-                                {investment.shares} shares · {formatCurrency(prices.currentPrice, currency)} each
+                                {t("investmentsPage.sharesEach", {
+                                  shares: String(investment.shares),
+                                  price: formatCurrency(prices.currentPrice, currency),
+                                })}
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                Source currency: {investment.currency}
+                                {t("investmentsPage.sourceCurrency", { currency: investment.currency })}
                               </div>
                             </div>
                           </div>
@@ -458,7 +463,7 @@ export default function Investments() {
                               className="mt-2 inline-flex items-center gap-1 text-xs text-destructive hover:underline"
                             >
                               <Trash2 className="size-3" />
-                              Remove
+                              {t("investmentsPage.remove")}
                             </button>
                           </div>
                         </div>
@@ -474,13 +479,11 @@ export default function Investments() {
         {activeTab === "learn" ? (
           <div className="space-y-6">
             <div className="bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/20 rounded-xl p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <Lightbulb className="size-6 text-primary mt-1" />
-                <div>
-                  <h3 className="mb-2">Start with Your Risk Tolerance</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Understanding your risk tolerance helps you choose the right investments
-                  </p>
+                <div className="flex items-start gap-3 mb-4">
+                  <Lightbulb className="size-6 text-primary mt-1" />
+                  <div>
+                  <h3 className="mb-2">{t("investmentsPage.riskToleranceTitle")}</h3>
+                  <p className="text-sm text-muted-foreground mb-4">{t("investmentsPage.riskToleranceDescription")}</p>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <button
                       onClick={() => setSelectedRisk("low")}
@@ -489,8 +492,8 @@ export default function Investments() {
                       }`}
                     >
                       <Shield className="size-5 mb-2 text-primary" />
-                      <div className="font-medium mb-1">Low Risk</div>
-                      <div className="text-xs text-muted-foreground">Prefer stability, minimal losses</div>
+                      <div className="font-medium mb-1">{t("investmentsPage.lowRisk")}</div>
+                      <div className="text-xs text-muted-foreground">{t("investmentsPage.lowRiskDescription")}</div>
                     </button>
                     <button
                       onClick={() => setSelectedRisk("medium")}
@@ -499,8 +502,8 @@ export default function Investments() {
                       }`}
                     >
                       <Target className="size-5 mb-2 text-primary" />
-                      <div className="font-medium mb-1">Medium Risk</div>
-                      <div className="text-xs text-muted-foreground">Balanced approach, some volatility OK</div>
+                      <div className="font-medium mb-1">{t("investmentsPage.mediumRisk")}</div>
+                      <div className="text-xs text-muted-foreground">{t("investmentsPage.mediumRiskDescription")}</div>
                     </button>
                     <button
                       onClick={() => setSelectedRisk("high")}
@@ -509,8 +512,8 @@ export default function Investments() {
                       }`}
                     >
                       <Zap className="size-5 mb-2 text-primary" />
-                      <div className="font-medium mb-1">High Risk</div>
-                      <div className="text-xs text-muted-foreground">Seeking high returns, comfortable with losses</div>
+                      <div className="font-medium mb-1">{t("investmentsPage.highRisk")}</div>
+                      <div className="text-xs text-muted-foreground">{t("investmentsPage.highRiskDescription")}</div>
                     </button>
                   </div>
                 </div>
@@ -533,15 +536,15 @@ export default function Investments() {
                   <div className="p-6 pt-0 border-t border-border space-y-4">
                     <div className="flex items-center gap-2 text-sm">
                       <AlertCircle className="size-4 text-amber-500" />
-                      <span className="text-muted-foreground">Risk Level:</span>
+                      <span className="text-muted-foreground">{t("investmentsPage.riskLevel")}</span>
                       <span className="font-medium">{resource.risk}</span>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-4">
-                      <div className="text-sm text-muted-foreground mb-1">Example:</div>
+                      <div className="text-sm text-muted-foreground mb-1">{t("investmentsPage.example")}</div>
                       <div className="text-sm">{resource.example}</div>
                     </div>
                     <div>
-                      <div className="text-sm mb-2">Student Tips:</div>
+                      <div className="text-sm mb-2">{t("investmentsPage.studentTips")}</div>
                       <ul className="space-y-2">
                         {resource.tips.map((tip) => (
                           <li key={tip} className="flex items-start gap-2 text-sm">
@@ -564,11 +567,11 @@ export default function Investments() {
               <div className="bg-card border border-border rounded-xl p-6">
                 <h3 className="mb-6 flex items-center gap-2">
                   <Target className="size-5 text-primary" />
-                  Investment Growth Calculator
+                  {t("investmentsPage.calculatorTitle")}
                 </h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Initial Investment ({currency})</label>
+                    <label className="text-sm text-muted-foreground mb-2 block">{t("investmentsPage.initialInvestment", { currency })}</label>
                     <input
                       type="number"
                       value={investmentAmount}
@@ -578,7 +581,7 @@ export default function Investments() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Monthly Contribution ({currency})</label>
+                    <label className="text-sm text-muted-foreground mb-2 block">{t("investmentsPage.monthlyContribution", { currency })}</label>
                     <input
                       type="number"
                       value={monthlyContribution}
@@ -588,7 +591,7 @@ export default function Investments() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Time Horizon (Years)</label>
+                    <label className="text-sm text-muted-foreground mb-2 block">{t("investmentsPage.timeHorizon")}</label>
                     <input
                       type="number"
                       value={timeHorizon}
@@ -598,7 +601,7 @@ export default function Investments() {
                     />
                   </div>
                   <div>
-                    <label className="text-sm text-muted-foreground mb-2 block">Expected Annual Return (%)</label>
+                    <label className="text-sm text-muted-foreground mb-2 block">{t("investmentsPage.expectedAnnualReturn")}</label>
                     <div className="flex items-center gap-4">
                       <input
                         type="range"
@@ -618,17 +621,17 @@ export default function Investments() {
               <div className="bg-gradient-to-br from-primary/5 to-accent/5 border border-primary/20 rounded-xl p-6">
                 <h3 className="mb-6 flex items-center gap-2">
                   <TrendingUp className="size-5 text-primary" />
-                  Projected Results
+                  {t("investmentsPage.projectedResults")}
                 </h3>
                 <div className="space-y-6">
                   <div className="bg-card rounded-xl p-6 text-center">
-                    <div className="text-sm text-muted-foreground mb-2">Future Value</div>
+                    <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.futureValue")}</div>
                     <div className="text-4xl text-primary mb-2">{formatCurrency(parseFloat(calculateInvestmentGrowth()), currency)}</div>
-                    <div className="text-sm text-muted-foreground">after {timeHorizon} years</div>
+                    <div className="text-sm text-muted-foreground">{t("investmentsPage.afterYears", { years: timeHorizon })}</div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-card rounded-xl p-4">
-                      <div className="text-xs text-muted-foreground mb-1">Total Invested</div>
+                      <div className="text-xs text-muted-foreground mb-1">{t("investmentsPage.totalInvested")}</div>
                       <div className="text-xl">
                         {formatCurrency(
                           parseFloat(investmentAmount || "0") +
@@ -638,7 +641,7 @@ export default function Investments() {
                       </div>
                     </div>
                     <div className="bg-card rounded-xl p-4">
-                      <div className="text-xs text-muted-foreground mb-1">Total Earnings</div>
+                      <div className="text-xs text-muted-foreground mb-1">{t("investmentsPage.totalGainLoss")}</div>
                       <div className="text-xl text-primary">
                         {formatCurrency(
                           parseFloat(calculateInvestmentGrowth()) -
@@ -652,13 +655,13 @@ export default function Investments() {
                   <div className="bg-card rounded-xl p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Info className="size-4 text-muted-foreground" />
-                      <span className="text-sm">Assumptions</span>
+                      <span className="text-sm">{t("investmentsPage.assumptions")}</span>
                     </div>
                     <ul className="text-xs text-muted-foreground space-y-1">
-                      <li>• Returns are compounded monthly</li>
-                      <li>• Historical average S&amp;P 500 return: ~10% annually</li>
-                      <li>• Past performance doesn't guarantee future results</li>
-                      <li>• Actual returns may vary significantly</li>
+                      <li>• {t("investmentsPage.assumptionsMonthly")}</li>
+                      <li>• {t("investmentsPage.assumptionsHistorical")}</li>
+                      <li>• {t("investmentsPage.assumptionsPastPerformance")}</li>
+                      <li>• {t("investmentsPage.assumptionsActualReturns")}</li>
                     </ul>
                   </div>
                 </div>
@@ -668,7 +671,7 @@ export default function Investments() {
             <div className="bg-card border border-border rounded-xl p-6">
               <h3 className="mb-4 flex items-center gap-2">
                 <Lightbulb className="size-5 text-primary" />
-                Sample Student Investment Scenarios
+                {t("investmentsPage.sampleScenarios")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button
@@ -682,9 +685,16 @@ export default function Investments() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Clock className="size-4 text-primary" />
-                    <span className="font-medium">Cautious Starter</span>
+                    <span className="font-medium">{t("investmentsPage.cautiousStarter")}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">{formatCurrency(500, currency)} initial + {formatCurrency(50, currency)}/month for 5 years at 7% return</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("investmentsPage.scenarioDescription", {
+                      initial: formatCurrency(500, currency),
+                      monthly: formatCurrency(50, currency),
+                      years: "5",
+                      rate: "7",
+                    })}
+                  </div>
                 </button>
                 <button
                   onClick={() => {
@@ -697,9 +707,16 @@ export default function Investments() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <Target className="size-4 text-primary" />
-                    <span className="font-medium">Balanced Builder</span>
+                    <span className="font-medium">{t("investmentsPage.balancedBuilder")}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">{formatCurrency(1000, currency)} initial + {formatCurrency(100, currency)}/month for 10 years at 8% return</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("investmentsPage.scenarioDescription", {
+                      initial: formatCurrency(1000, currency),
+                      monthly: formatCurrency(100, currency),
+                      years: "10",
+                      rate: "8",
+                    })}
+                  </div>
                 </button>
                 <button
                   onClick={() => {
@@ -712,9 +729,16 @@ export default function Investments() {
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <TrendingUp className="size-4 text-primary" />
-                    <span className="font-medium">Ambitious Investor</span>
+                    <span className="font-medium">{t("investmentsPage.ambitiousInvestor")}</span>
                   </div>
-                  <div className="text-sm text-muted-foreground">{formatCurrency(2000, currency)} initial + {formatCurrency(200, currency)}/month for 15 years at 10% return</div>
+                  <div className="text-sm text-muted-foreground">
+                    {t("investmentsPage.scenarioDescription", {
+                      initial: formatCurrency(2000, currency),
+                      monthly: formatCurrency(200, currency),
+                      years: "15",
+                      rate: "10",
+                    })}
+                  </div>
                 </button>
               </div>
             </div>
@@ -726,7 +750,7 @@ export default function Investments() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card rounded-xl max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3>Add Investment</h3>
+              <h3>{t("investmentsPage.addInvestmentTitle")}</h3>
               <button onClick={resetInvestmentForm} className="p-1 rounded-lg hover:bg-muted">
                 <X className="size-5" />
               </button>
@@ -736,7 +760,7 @@ export default function Investments() {
                 type="text"
                 value={newInvestment.name}
                 onChange={(e) => setNewInvestment((current) => ({ ...current, name: e.target.value }))}
-                placeholder="Investment name"
+                placeholder={t("investmentsPage.investmentNamePlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <select
@@ -744,17 +768,17 @@ export default function Investments() {
                 onChange={(e) => setNewInvestment((current) => ({ ...current, type: e.target.value as InvestmentType }))}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="stock">Stock</option>
-                <option value="crypto">Crypto</option>
-                <option value="etf">ETF</option>
-                <option value="bond">Bond</option>
+                <option value="stock">{localizeInvestmentType("stock")}</option>
+                <option value="crypto">{localizeInvestmentType("crypto")}</option>
+                <option value="etf">{localizeInvestmentType("etf")}</option>
+                <option value="bond">{localizeInvestmentType("bond")}</option>
               </select>
               <input
                 type="number"
                 step="0.00000001"
                 value={newInvestment.shares}
                 onChange={(e) => setNewInvestment((current) => ({ ...current, shares: e.target.value }))}
-                placeholder="Shares / units"
+                placeholder={t("investmentsPage.sharesUnitsPlaceholder")}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <input
@@ -762,7 +786,7 @@ export default function Investments() {
                 step="0.01"
                 value={newInvestment.purchasePrice}
                 onChange={(e) => setNewInvestment((current) => ({ ...current, purchasePrice: e.target.value }))}
-                placeholder={`Purchase price per share (${currency})`}
+                placeholder={t("investmentsPage.purchasePricePlaceholder", { currency })}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <input
@@ -770,14 +794,14 @@ export default function Investments() {
                 step="0.01"
                 value={newInvestment.currentPrice}
                 onChange={(e) => setNewInvestment((current) => ({ ...current, currentPrice: e.target.value }))}
-                placeholder={`Current price per share (${currency})`}
+                placeholder={t("investmentsPage.currentPricePlaceholder", { currency })}
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
               <button
                 onClick={handleAddInvestment}
                 className="w-full py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
               >
-                Save Investment
+                {t("investmentsPage.saveInvestment")}
               </button>
             </div>
           </div>

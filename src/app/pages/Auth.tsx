@@ -4,10 +4,12 @@ import { Mail, Lock, User, Eye, EyeOff } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
 import { BRAND_LOGO_SRC } from "../lib/branding";
+import { useI18n } from "../providers/I18nProvider";
 
 export default function Auth() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,11 +65,11 @@ export default function Auth() {
       if (data.session) {
         navigate("/", { replace: true });
       } else {
-        setStatusMessage("Account created. Check your email to confirm your address before signing in.");
+        setStatusMessage(t("auth.accountCreated"));
         setIsLogin(true);
       }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Authentication failed");
+      setErrorMessage(error instanceof Error ? error.message : t("auth.authFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -80,17 +82,17 @@ export default function Auth() {
         <div className="text-center mb-8">
           <img
             src={BRAND_LOGO_SRC}
-            alt="Bambu logo"
-            className="mx-auto mb-4 h-20 w-20 object-contain"
+            alt="Bambuu logo"
+            className="mx-auto mb-5 h-24 w-24 object-contain"
           />
-          <h1 className="text-3xl mb-2">Bambu</h1>
-          <p className="text-muted-foreground">Your Student Budget Companion</p>
+          <h1 className="mb-3 text-5xl">Bambuu</h1>
+          <p className="text-lg text-muted-foreground">{t("auth.subtitle")}</p>
         </div>
 
         {/* Auth Card */}
         <div className="bg-card rounded-2xl shadow-2xl p-8 border border-border">
           <h2 className="mb-6 text-center">
-            {isLogin ? "Welcome Back!" : "Create Account"}
+            {isLogin ? t("auth.welcomeBack") : t("auth.createAccount")}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -108,7 +110,7 @@ export default function Auth() {
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                   <User className="size-4" />
-                  Full Name
+                  {t("auth.fullName")}
                 </label>
                 <input
                   type="text"
@@ -124,7 +126,7 @@ export default function Auth() {
             <div>
               <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                 <Mail className="size-4" />
-                Email
+                {t("auth.email")}
               </label>
               <input
                 type="email"
@@ -139,7 +141,7 @@ export default function Auth() {
             <div>
               <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                 <Lock className="size-4" />
-                Password
+                {t("auth.password")}
               </label>
               <div className="relative">
                 <input
@@ -165,7 +167,7 @@ export default function Auth() {
               disabled={isSubmitting}
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity mt-6"
             >
-              {isSubmitting ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+              {isSubmitting ? t("auth.pleaseWait") : isLogin ? t("auth.signIn") : t("auth.createAccountButton")}
             </button>
           </form>
 
@@ -180,13 +182,13 @@ export default function Auth() {
             >
               {isLogin ? (
                 <>
-                  Don't have an account?{" "}
-                  <span className="text-primary font-medium">Sign up</span>
+                  {t("auth.noAccount")}{" "}
+                  <span className="text-primary font-medium">{t("auth.signUp")}</span>
                 </>
               ) : (
                 <>
-                  Already have an account?{" "}
-                  <span className="text-primary font-medium">Sign in</span>
+                  {t("auth.haveAccount")}{" "}
+                  <span className="text-primary font-medium">{t("auth.signIn")}</span>
                 </>
               )}
             </button>
@@ -195,7 +197,7 @@ export default function Auth() {
 
         {/* Footer */}
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Track. Save. Grow.
+          {t("auth.footer")}
         </p>
       </div>
     </div>

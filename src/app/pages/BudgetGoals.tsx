@@ -39,6 +39,7 @@ import {
 } from "../lib/finance";
 import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal } from "../types/finance";
 import type { Transaction } from "../types/transactions";
 
@@ -77,6 +78,7 @@ interface BudgetCategoryWithSpent extends BudgetCategory {
 
 export default function BudgetGoals() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const currency = useUserCurrency();
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
@@ -238,7 +240,7 @@ export default function BudgetGoals() {
   };
 
   const handleDeleteGoal = async (goalId: string) => {
-    if (!user || !confirm("Are you sure you want to delete this goal?")) {
+    if (!user || !confirm(t("budgetGoalsPage.confirmDeleteGoal"))) {
       return;
     }
 
@@ -292,7 +294,7 @@ export default function BudgetGoals() {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!user || !confirm("Are you sure you want to delete this category?")) {
+    if (!user || !confirm(t("budgetGoalsPage.confirmDeleteCategory"))) {
       return;
     }
 
@@ -303,7 +305,7 @@ export default function BudgetGoals() {
 
   const handleAddCategory = async () => {
     if (!user || !newCategoryName || !newCategoryBudget) {
-      alert("Please fill in all fields");
+      alert(t("budgetGoalsPage.fillAllFields"));
       return;
     }
 
@@ -328,10 +330,10 @@ export default function BudgetGoals() {
           <div className="bg-primary text-white rounded-xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <Target className="size-5" />
-              <h3 className="text-white">Savings Goals</h3>
+              <h3 className="text-white">{t("budgetGoalsPage.savingsGoals")}</h3>
             </div>
             <div className="text-3xl mb-1">{formatCurrency(totalGoalsSaved, currency)}</div>
-            <div className="text-white/80 text-sm">of {formatCurrency(totalGoalsTarget, currency)} total</div>
+            <div className="text-white/80 text-sm">{t("budgetGoalsPage.totalLabel", { amount: formatCurrency(totalGoalsTarget, currency) })}</div>
             <div className="mt-3 w-full bg-white/20 rounded-full h-2">
               <div
                 className="h-full bg-white rounded-full transition-all"
@@ -343,10 +345,10 @@ export default function BudgetGoals() {
           <div className="bg-card border border-border rounded-xl p-6">
             <div className="flex items-center gap-2 mb-3">
               <DollarSign className="size-5 text-primary" />
-              <h3>Monthly Budget</h3>
+              <h3>{t("budgetGoalsPage.monthlyBudget")}</h3>
             </div>
             <div className="text-3xl mb-1">{formatCurrency(totalSpent, currency)}</div>
-            <div className="text-muted-foreground text-sm">of {formatCurrency(totalBudget, currency)} budget</div>
+            <div className="text-muted-foreground text-sm">{t("budgetGoalsPage.budgetLabel", { amount: formatCurrency(totalBudget, currency) })}</div>
             <div className="mt-3 w-full bg-muted rounded-full h-2">
               <div
                 className={`h-full rounded-full transition-all ${
@@ -360,7 +362,7 @@ export default function BudgetGoals() {
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3>Your Savings Goals</h3>
+            <h3>{t("budgetGoalsPage.yourSavingsGoals")}</h3>
             <button
               onClick={() => {
                 setAddingGoal(true);
@@ -372,17 +374,17 @@ export default function BudgetGoals() {
               className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
             >
               <Plus className="size-4" />
-              Add Goal
+              {t("budgetGoalsPage.addGoal")}
             </button>
           </div>
 
           {isLoading ? (
-            <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">Loading goals...</div>
+            <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">{t("budgetGoalsPage.loadingGoals")}</div>
           ) : (
             <div className="grid md:grid-cols-2 gap-4">
               {goals.length === 0 ? (
                 <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">
-                  No goals yet. Add your first savings target.
+                  {t("budgetGoalsPage.noGoals")}
                 </div>
               ) : (
                 goals.map((goal) => {
@@ -405,7 +407,7 @@ export default function BudgetGoals() {
                                 value={goalName}
                                 onChange={(e) => setGoalName(e.target.value)}
                                 className="w-full px-3 py-1 bg-input-background rounded border border-border focus:border-primary focus:outline-none"
-                                placeholder="Goal name"
+                                placeholder={t("budgetGoalsPage.goalName")}
                               />
                             </div>
                           </div>
@@ -416,7 +418,7 @@ export default function BudgetGoals() {
                             value={goalAmount}
                             onChange={(e) => setGoalAmount(e.target.value)}
                             className="w-full px-3 py-2 bg-input-background rounded border border-border focus:border-primary focus:outline-none"
-                            placeholder="Target amount"
+                            placeholder={t("budgetGoalsPage.targetAmount")}
                           />
 
                           <input
@@ -425,7 +427,7 @@ export default function BudgetGoals() {
                             value={goalCurrent}
                             onChange={(e) => setGoalCurrent(e.target.value)}
                             className="w-full px-3 py-2 bg-input-background rounded border border-border focus:border-primary focus:outline-none"
-                            placeholder="Current amount"
+                            placeholder={t("budgetGoalsPage.currentAmount")}
                           />
 
                           <div className="grid grid-cols-6 gap-2">
@@ -448,7 +450,7 @@ export default function BudgetGoals() {
                               className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90 flex items-center justify-center gap-1"
                             >
                               <Check className="size-4" />
-                              Save
+                              {t("budgetGoalsPage.save")}
                             </button>
                             <button
                               onClick={resetGoalForm}
@@ -510,9 +512,9 @@ export default function BudgetGoals() {
                           </div>
 
                           <div className="mt-2 flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">{progress.toFixed(0)}% complete</span>
+                            <span className="text-muted-foreground">{t("budgetGoalsPage.complete", { progress: progress.toFixed(0) })}</span>
                             <span className="text-muted-foreground">
-                              {formatCurrency(displayGoal.targetAmount - displayGoal.currentAmount, currency)} to go
+                              {t("budgetGoalsPage.toGo", { amount: formatCurrency(displayGoal.targetAmount - displayGoal.currentAmount, currency) })}
                             </span>
                           </div>
                         </>
@@ -527,23 +529,23 @@ export default function BudgetGoals() {
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3>Category Budgets</h3>
+            <h3>{t("budgetGoalsPage.categoryBudgets")}</h3>
             <button
               onClick={() => setAddingCategory(true)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
             >
               <Plus className="size-4" />
-              Add Category
+              {t("budgetGoalsPage.addCategory")}
             </button>
           </div>
 
           {isLoading ? (
-            <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">Loading budget categories...</div>
+            <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">{t("budgetGoalsPage.loadingBudgetCategories")}</div>
           ) : (
             <div className="space-y-3">
               {categoriesWithSpent.length === 0 ? (
                 <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">
-                  No budget categories yet. Add one to start tracking against transactions.
+                  {t("budgetGoalsPage.noBudgetCategories")}
                 </div>
               ) : (
                 categoriesWithSpent.map((category) => {
@@ -568,7 +570,7 @@ export default function BudgetGoals() {
                           </div>
 
                           <div>
-                            <label className="text-sm text-muted-foreground mb-2 block">Monthly Budget ($)</label>
+                            <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.monthlyBudgetInput")}</label>
                             <input
                               type="number"
                               step="0.01"
@@ -585,7 +587,7 @@ export default function BudgetGoals() {
                               className="flex-1 bg-primary text-primary-foreground py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                             >
                               <Check className="size-4" />
-                              Save
+                              {t("budgetGoalsPage.save")}
                             </button>
                             <button
                               onClick={() => {
@@ -643,11 +645,11 @@ export default function BudgetGoals() {
                             />
                           </div>
                           <div className="text-sm text-muted-foreground mt-2 flex items-center justify-between">
-                            <span>{percentage.toFixed(1)}% used</span>
+                            <span>{t("budgetGoalsPage.used", { value: percentage.toFixed(1) })}</span>
                             {isOverBudget ? (
-                              <span className="text-destructive">⚠️ {formatCurrency(category.spent - category.displayBudget, currency)} over</span>
+                              <span className="text-destructive">⚠️ {t("budgetGoalsPage.over", { amount: formatCurrency(category.spent - category.displayBudget, currency) })}</span>
                             ) : (
-                              <span className="text-primary">{formatCurrency(category.displayBudget - category.spent, currency)} left</span>
+                              <span className="text-primary">{t("budgetGoalsPage.left", { amount: formatCurrency(category.displayBudget - category.spent, currency) })}</span>
                             )}
                           </div>
                         </>
@@ -664,7 +666,7 @@ export default function BudgetGoals() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full">
               <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <h2 className="text-white">Add New Goal</h2>
+                <h2 className="text-white">{t("budgetGoalsPage.addNewGoal")}</h2>
                 <button onClick={resetGoalForm} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
                   <X className="size-5" />
                 </button>
@@ -672,18 +674,18 @@ export default function BudgetGoals() {
 
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Goal Name</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.goalNameLabel")}</label>
                   <input
                     type="text"
                     value={goalName}
                     onChange={(e) => setGoalName(e.target.value)}
-                    placeholder="e.g., New Laptop"
+                    placeholder={t("budgetGoalsPage.goalNamePlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Target Amount ($)</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.targetAmountLabel")}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -695,7 +697,7 @@ export default function BudgetGoals() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Current Amount ($)</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.currentAmountLabel")}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -707,7 +709,7 @@ export default function BudgetGoals() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Emoji Icon</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.emojiIcon")}</label>
                   <div className="grid grid-cols-7 gap-2">
                     {emojiOptions.map((emoji) => (
                       <button
@@ -729,7 +731,7 @@ export default function BudgetGoals() {
                   className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                 >
                   <Plus className="size-4" />
-                  Add Goal
+                  {t("budgetGoalsPage.addGoal")}
                 </button>
               </div>
             </div>
@@ -740,7 +742,7 @@ export default function BudgetGoals() {
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
               <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
-                <h2 className="text-white">Add New Category</h2>
+                <h2 className="text-white">{t("budgetGoalsPage.addNewCategory")}</h2>
                 <button onClick={resetCategoryForm} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
                   <X className="size-5" />
                 </button>
@@ -750,13 +752,13 @@ export default function BudgetGoals() {
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                     <Tag className="size-4" />
-                    Category Name
+                    {t("budgetGoalsPage.categoryName")}
                   </label>
                   <input
                     type="text"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
-                    placeholder="e.g., Gym"
+                    placeholder={t("budgetGoalsPage.categoryNamePlaceholder")}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
@@ -764,7 +766,7 @@ export default function BudgetGoals() {
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-1">
                     <DollarSign className="size-4" />
-                    Monthly Budget
+                    {t("budgetGoalsPage.monthlyBudgetLabel")}
                   </label>
                   <input
                     type="number"
@@ -777,7 +779,7 @@ export default function BudgetGoals() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Icon</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.icon")}</label>
                   <div className="grid grid-cols-4 gap-2">
                     {iconOptions.map((option) => {
                       const Icon = option.icon;
@@ -799,7 +801,7 @@ export default function BudgetGoals() {
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">Color</label>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.color")}</label>
                   <div className="grid grid-cols-5 gap-2">
                     {colorOptions.map((color) => (
                       <button
@@ -820,7 +822,7 @@ export default function BudgetGoals() {
                   className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                 >
                   <Plus className="size-4" />
-                  Add Category
+                  {t("budgetGoalsPage.addCategory")}
                 </button>
               </div>
             </div>

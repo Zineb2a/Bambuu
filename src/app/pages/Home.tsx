@@ -48,6 +48,7 @@ import {
   parseTransactionDate,
 } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { SavingsGoal } from "../types/finance";
 import type { Transaction } from "../types/transactions";
 
@@ -55,6 +56,7 @@ const CHART_COLORS = ["#2d6a4f", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7", "#4
 
 export default function Home() {
   const { user } = useAuth();
+  const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
@@ -109,7 +111,8 @@ export default function Home() {
     };
   }, [user]);
 
-  const userName = user?.user_metadata?.full_name || user?.email?.split("@")[0] || "";
+  const userName =
+    user?.user_metadata?.full_name?.trim().split(/\s+/)[0] || user?.email?.split("@")[0] || "";
   const pinnedGoal = goals.find((goal) => goal.pinned) ?? goals[0] ?? null;
   const pinnedGoalAmounts = pinnedGoal
     ? getSavingsGoalAmountsInCurrency(pinnedGoal, currency)
@@ -250,9 +253,9 @@ export default function Home() {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 18) return "Good afternoon";
-    return "Good evening";
+    if (hour < 12) return t("home.goodMorning");
+    if (hour < 18) return t("home.goodAfternoon");
+    return t("home.goodEvening");
   };
 
   const getCategoryIcon = (category: string) => {
@@ -285,31 +288,31 @@ export default function Home() {
             </h2>
             <img
               src={BRAND_LOGO_SRC}
-              alt="Bambu logo"
+              alt="Bambuu logo"
               className="h-8 w-8 object-contain"
             />
           </div>
-          <p className="text-muted-foreground">Here's your financial overview</p>
+          <p className="text-muted-foreground">{t("home.overview")}</p>
         </div>
 
         <div className="bg-primary text-white rounded-2xl p-6 mb-8 shadow-lg">
           <div className="flex items-center gap-2 mb-2 opacity-90">
             <Wallet className="size-5" />
-            <span className="text-sm">Total Balance</span>
+            <span className="text-sm">{t("home.totalBalance")}</span>
           </div>
           <div className="text-4xl mb-4">{formatCurrency(balance, currency)}</div>
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="size-4" />
-                <span className="text-xs opacity-90">Income</span>
+                <span className="text-xs opacity-90">{t("home.income")}</span>
               </div>
               <div className="text-xl">{formatCurrency(monthlyIncome, currency)}</div>
             </div>
             <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingDown className="size-4" />
-                <span className="text-xs opacity-90">Expenses</span>
+                <span className="text-xs opacity-90">{t("home.expenses")}</span>
               </div>
               <div className="text-xl">{formatCurrency(monthlyExpenses, currency)}</div>
             </div>
@@ -320,7 +323,7 @@ export default function Home() {
           <div className="flex-1 space-y-6">
             <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
               <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">View:</span>
+                <span className="text-sm text-muted-foreground">{t("home.view")}</span>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTimePeriod("week")}
@@ -331,7 +334,7 @@ export default function Home() {
                     }`}
                   >
                     <Calendar className="size-4" />
-                    Week
+                    {t("home.week")}
                   </button>
                   <button
                     onClick={() => setTimePeriod("month")}
@@ -342,7 +345,7 @@ export default function Home() {
                     }`}
                   >
                     <CalendarDays className="size-4" />
-                    Month
+                    {t("home.month")}
                   </button>
                   <button
                     onClick={() => setTimePeriod("year")}
@@ -353,7 +356,7 @@ export default function Home() {
                     }`}
                   >
                     <CalendarRange className="size-4" />
-                    Year
+                    {t("home.year")}
                   </button>
                 </div>
               </div>
@@ -363,12 +366,12 @@ export default function Home() {
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
                 <h3 className="mb-4 flex items-center gap-2">
                   <Target className="size-5 text-primary" />
-                  Spending by Category
+                  {t("home.spendingByCategory")}
                 </h3>
                 {expensesByCategory.length === 0 ? (
                   <div className="h-[250px] flex flex-col items-center justify-center rounded-lg bg-muted/40 text-center">
                     <div className="text-4xl text-primary mb-2">{formatCurrency(0, currency)}</div>
-                    <p className="text-sm text-muted-foreground">No expense data for this period.</p>
+                    <p className="text-sm text-muted-foreground">{t("home.noExpenseData")}</p>
                   </div>
                 ) : (
                   <div suppressHydrationWarning>
@@ -393,12 +396,12 @@ export default function Home() {
                 )}
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   {expensesByCategory.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">{formatCurrency(0, currency)} total</div>
+                    <div className="text-sm text-muted-foreground">{formatCurrency(0, currency)} {t("home.totalSuffix")}</div>
                   ) : (
                     expensesByCategory.map((category, index) => (
                       <div key={`legend-${category.name}-${index}`} className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                        <span className="text-sm text-muted-foreground">{category.name}</span>
+                        <span className="text-sm text-muted-foreground">{localizeCategory(category.name)}</span>
                       </div>
                     ))
                   )}
@@ -408,7 +411,7 @@ export default function Home() {
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
                 <h3 className="mb-4 flex items-center gap-2">
                   <TrendingUp className="size-5 text-primary" />
-                  Monthly Overview
+                  {t("home.monthlyOverview")}
                 </h3>
                 <div suppressHydrationWarning>
                   <ResponsiveContainer width="100%" height={250}>
@@ -430,11 +433,11 @@ export default function Home() {
                 <div className="flex items-center justify-center gap-6 mt-4">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded" style={{ backgroundColor: "#2d6a4f" }} />
-                    <span className="text-sm text-muted-foreground">Income</span>
+                    <span className="text-sm text-muted-foreground">{t("home.income")}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded" style={{ backgroundColor: "#95d5b2" }} />
-                    <span className="text-sm text-muted-foreground">Expenses</span>
+                    <span className="text-sm text-muted-foreground">{t("home.expenses")}</span>
                   </div>
                 </div>
               </div>
@@ -442,19 +445,19 @@ export default function Home() {
 
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
               <div className="flex items-center justify-between mb-4">
-                <h3>Recent Transactions</h3>
+                <h3>{t("home.recentTransactions")}</h3>
                 <Link to="/transactions" className="text-primary hover:underline text-sm">
-                  View All
+                  {t("home.viewAll")}
                 </Link>
               </div>
               <div className="space-y-3">
                 {isLoading ? (
                   <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-                    Loading transactions...
+                    {t("home.loadingTransactions")}
                   </div>
                 ) : transactions.length === 0 ? (
                   <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-                    No transactions yet. Use the + button to create your first one.
+                    {t("home.noTransactions")}
                   </div>
                 ) : (
                   transactions.slice(0, 6).map((transaction) => (
@@ -468,10 +471,12 @@ export default function Home() {
                         <div>
                           <div>{transaction.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {transaction.category} • {formatTransactionDate(transaction.occurredOn)}
+                            {localizeCategory(transaction.category)} • {formatTransactionDate(transaction.occurredOn)}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            Paid in {formatCurrencyWithCode(transaction.originalAmount, transaction.currency)}
+                            {t("common.paidIn", {
+                              amount: formatCurrencyWithCode(transaction.originalAmount, transaction.currency),
+                            })}
                           </div>
                         </div>
                       </div>
@@ -491,8 +496,8 @@ export default function Home() {
               <div className="w-20 h-20 bg-accent rounded-2xl flex items-center justify-center shadow-md mb-2">
                 <span className="text-3xl">{pinnedGoal?.emoji ?? "🎯"}</span>
               </div>
-              <div className="text-xs text-muted-foreground">Goal!</div>
-              <div className="text-sm font-medium mt-1">{pinnedGoal ? formatCurrency(savingsGoal, currency) : "No goal pinned"}</div>
+              <div className="text-xs text-muted-foreground">{t("home.goal")}</div>
+              <div className="text-sm font-medium mt-1">{pinnedGoal ? formatCurrency(savingsGoal, currency) : t("home.noGoalPinned")}</div>
             </div>
 
             <div className="relative flex-1 w-16 min-h-[400px] rounded-full overflow-hidden bg-[#E8D7B8] shadow-inner border-2 border-[#D4C5A9]">
@@ -554,11 +559,16 @@ export default function Home() {
             </div>
 
             <div className="mt-4 text-center">
-              <div className="text-xs text-muted-foreground">Start</div>
+              <div className="text-xs text-muted-foreground">{t("home.start")}</div>
               <div className="text-sm">{formatCurrency(0, currency)}</div>
               <div className="mt-3 bg-accent/30 px-3 py-2 rounded-lg max-w-[140px]">
                 <p className="text-xs">
-                  {pinnedGoal ? `${formatCurrency(savingsGoal - currentSavings, currency)} to go! ${pinnedGoal.emoji}` : "Pin a goal in Budget & Goals"}
+                  {pinnedGoal
+                    ? t("home.toGo", {
+                        amount: formatCurrency(savingsGoal - currentSavings, currency),
+                        emoji: pinnedGoal.emoji,
+                      })
+                    : t("home.pinGoal")}
                 </p>
               </div>
             </div>

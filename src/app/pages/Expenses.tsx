@@ -5,10 +5,12 @@ import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
+import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
 
 export default function Expenses() {
   const { user } = useAuth();
+  const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,7 +84,7 @@ export default function Expenses() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search expenses..."
+            placeholder={t("expensesPage.search")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-input-background pl-11 pr-4 py-3 rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
@@ -91,23 +93,23 @@ export default function Expenses() {
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <div className="text-sm text-muted-foreground">Total Expenses</div>
+            <div className="text-sm text-muted-foreground">{t("expensesPage.totalExpenses")}</div>
             <div className="text-3xl text-foreground">{formatCurrency(totalExpenses, currency)}</div>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg">
             <Filter className="size-4" />
-            {filteredExpenses.length} items
+            {t("expensesPage.items", { count: filteredExpenses.length })}
           </div>
         </div>
 
         <div className="space-y-3">
           {isLoading ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              Loading expenses...
+              {t("expensesPage.loading")}
             </div>
           ) : filteredExpenses.length === 0 ? (
             <div className="bg-card border border-border rounded-xl p-6 text-sm text-muted-foreground">
-              No expenses found.
+              {t("expensesPage.empty")}
             </div>
           ) : (
             filteredExpenses.map((expense) => (
@@ -119,9 +121,11 @@ export default function Expenses() {
                     </div>
                     <div>
                       <div className="font-medium">{expense.name}</div>
-                      <div className="text-sm text-muted-foreground">{expense.category}</div>
+                      <div className="text-sm text-muted-foreground">{localizeCategory(expense.category)}</div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {formatTransactionDate(expense.occurredOn)} • Paid in {formatCurrencyWithCode(expense.originalAmount, expense.currency)}
+                        {formatTransactionDate(expense.occurredOn)} • {t("common.paidIn", {
+                          amount: formatCurrencyWithCode(expense.originalAmount, expense.currency),
+                        })}
                       </div>
                     </div>
                   </div>
