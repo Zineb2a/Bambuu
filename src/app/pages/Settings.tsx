@@ -1,11 +1,8 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { 
-  User, 
-  Globe, 
-  DollarSign, 
-  Camera, 
-  Check, 
+import {
+  User,
+  Check,
   LogOut,
   Languages,
   Moon,
@@ -17,67 +14,86 @@ import {
   Bell,
   Lock,
   AlertTriangle,
-  Mail,
-  Calendar
+  Calendar,
+  Camera,
+  DollarSign,
 } from "lucide-react";
 import Layout from "../components/Layout";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
+import {
+  createLinkedCard,
+  getUserProfile,
+  getUserSettings,
+  listLinkedCards,
+  removeLinkedCard,
+  updateLinkedCard,
+  updateUserProfile,
+  updateUserSettings,
+} from "../lib/settings";
+import type { LinkedCard } from "../types/settings";
+
+const languages = [
+  "English",
+  "Español",
+  "Français",
+  "Deutsch",
+  "Português",
+  "中文",
+  "日本語",
+  "한국어",
+  "العربية",
+];
+
+const currencies = [
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
+  { code: "AUD", symbol: "A$", name: "Australian Dollar" },
+  { code: "JPY", symbol: "¥", name: "Japanese Yen" },
+  { code: "CNY", symbol: "¥", name: "Chinese Yuan" },
+  { code: "INR", symbol: "₹", name: "Indian Rupee" },
+  { code: "BRL", symbol: "R$", name: "Brazilian Real" },
+  { code: "MXN", symbol: "$", name: "Mexican Peso" },
+];
+
+const dateFormats = ["MM/DD/YYYY", "DD/MM/YYYY", "YYYY/MM/DD"];
+
+const emptyCard = {
+  cardNumber: "",
+  cardHolder: "",
+  cardType: "debit" as "credit" | "debit",
+  bankName: "",
+  autoImport: true,
+};
 
 export default function Settings() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [profilePhoto, setProfilePhoto] = useState<string | null>(
-    localStorage.getItem("userPhoto") || null
-  );
-  
-  // Split name into first and last
-  const [firstName, setFirstName] = useState(localStorage.getItem("userFirstName") || "");
-  const [lastName, setLastName] = useState(localStorage.getItem("userLastName") || "");
-  const [email, setEmail] = useState(user?.email || localStorage.getItem("userEmail") || "");
-  
-  const [language, setLanguage] = useState(localStorage.getItem("userLanguage") || "English");
-  const [currency, setCurrency] = useState(localStorage.getItem("userCurrency") || "USD");
-  const [dateFormat, setDateFormat] = useState(localStorage.getItem("userDateFormat") || "MM/DD/YYYY");
-  const [darkMode, setDarkMode] = useState(localStorage.getItem("darkMode") === "true");
-  const [savedNotification, setSavedNotification] = useState(false);
-
-  // Notification preferences
-  const [budgetAlerts, setBudgetAlerts] = useState(localStorage.getItem("budgetAlerts") !== "false");
-  const [subscriptionReminders, setSubscriptionReminders] = useState(localStorage.getItem("subscriptionReminders") !== "false");
-  const [weeklySummary, setWeeklySummary] = useState(localStorage.getItem("weeklySummary") !== "false");
-  const [savingsMilestones, setSavingsMilestones] = useState(localStorage.getItem("savingsMilestones") !== "false");
-
-  // Security
+  const [isLoading, setIsLoading] = useState(true);
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState(user?.email ?? "");
+  const [language, setLanguage] = useState("English");
+  const [currency, setCurrency] = useState("USD");
+  const [dateFormat, setDateFormat] = useState("MM/DD/YYYY");
+  const [darkMode, setDarkMode] = useState(false);
+  const [savedNotification, setSavedNotification] = useState("");
+  const [errorNotification, setErrorNotification] = useState("");
+  const [budgetAlerts, setBudgetAlerts] = useState(true);
+  const [subscriptionReminders, setSubscriptionReminders] = useState(true);
+  const [weeklySummary, setWeeklySummary] = useState(true);
+  const [savingsMilestones, setSavingsMilestones] = useState(true);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Linked Cards State
-  interface LinkedCard {
-    id: string;
-    cardNumber: string;
-    cardHolder: string;
-    cardType: 'credit' | 'debit';
-    bankName: string;
-    autoImport: boolean;
-  }
-
-  const [linkedCards, setLinkedCards] = useState<LinkedCard[]>(() => {
-    const saved = localStorage.getItem("linkedCards");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [linkedCards, setLinkedCards] = useState<LinkedCard[]>([]);
   const [showAddCardModal, setShowAddCardModal] = useState(false);
-  const [newCard, setNewCard] = useState({
-    cardNumber: '',
-    cardHolder: '',
-    cardType: 'debit' as 'credit' | 'debit',
-    bankName: '',
-    autoImport: true
-  });
+  const [newCard, setNewCard] = useState(emptyCard);
 
-  // Apply dark mode class to document
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add("dark");
@@ -86,108 +102,150 @@ export default function Settings() {
     }
   }, [darkMode]);
 
-  const languages = [
-    "English",
-    "Español",
-    "Français",
-    "Deutsch",
-    "Português",
-    "中文",
-    "日本語",
-    "한국어",
-    "العربية",
-  ];
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
 
-  const currencies = [
-    { code: "USD", symbol: "$", name: "US Dollar" },
-    { code: "EUR", symbol: "€", name: "Euro" },
-    { code: "GBP", symbol: "£", name: "British Pound" },
-    { code: "CAD", symbol: "C$", name: "Canadian Dollar" },
-    { code: "AUD", symbol: "A$", name: "Australian Dollar" },
-    { code: "JPY", symbol: "¥", name: "Japanese Yen" },
-    { code: "CNY", symbol: "¥", name: "Chinese Yuan" },
-    { code: "INR", symbol: "₹", name: "Indian Rupee" },
-    { code: "BRL", symbol: "R$", name: "Brazilian Real" },
-    { code: "MXN", symbol: "$", name: "Mexican Peso" },
-  ];
+    let isMounted = true;
 
-  const dateFormats = [
-    "MM/DD/YYYY",
-    "DD/MM/YYYY",
-    "YYYY/MM/DD"
-  ];
+    const loadSettings = async () => {
+      setIsLoading(true);
+      setErrorNotification("");
+
+      try {
+        const [profile, settings, cards] = await Promise.all([
+          getUserProfile(user.id, user.email ?? null),
+          getUserSettings(user.id),
+          listLinkedCards(user.id),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setProfilePhoto(profile.avatarUrl);
+        setFirstName(profile.firstName ?? "");
+        setLastName(profile.lastName ?? "");
+        setEmail(profile.email ?? user.email ?? "");
+        setLanguage(settings.language);
+        setCurrency(settings.currency);
+        setDateFormat(settings.dateFormat);
+        setDarkMode(settings.darkMode);
+        setBudgetAlerts(settings.budgetAlerts);
+        setSubscriptionReminders(settings.subscriptionReminders);
+        setWeeklySummary(settings.weeklySummary);
+        setSavingsMilestones(settings.savingsMilestones);
+        setLinkedCards(cards);
+      } catch (error) {
+        if (isMounted) {
+          setErrorNotification(error instanceof Error ? error.message : "Failed to load settings");
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
+
+  const showSaved = (message: string) => {
+    setSavedNotification(message);
+    setTimeout(() => setSavedNotification(""), 3000);
+  };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setProfilePhoto(result);
-        localStorage.setItem("userPhoto", result);
-        // Dispatch custom event to update header immediately
-        window.dispatchEvent(new Event("profilePhotoUpdated"));
-      };
-      reader.readAsDataURL(file);
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfilePhoto(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) {
+      return;
+    }
+
+    setErrorNotification("");
+
+    try {
+      await updateUserProfile(
+        user.id,
+        {
+          firstName,
+          lastName,
+          avatarUrl: profilePhoto,
+        },
+        email,
+      );
+
+      const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+      await supabase.auth.updateUser({
+        email,
+        data: {
+          full_name: fullName || null,
+        },
+      });
+
+      window.dispatchEvent(new Event("profileUpdated"));
+      showSaved("Profile saved successfully.");
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to save profile");
     }
   };
 
-  const handleSave = () => {
-    localStorage.setItem("userFirstName", firstName);
-    localStorage.setItem("userLastName", lastName);
-    localStorage.setItem("userEmail", email);
-    if (profilePhoto) {
-      localStorage.setItem("userPhoto", profilePhoto);
-      // Dispatch custom event to update header immediately
-      window.dispatchEvent(new Event("profilePhotoUpdated"));
+  const persistPreferences = async (overrides?: Partial<{
+    language: string;
+    currency: string;
+    dateFormat: string;
+    darkMode: boolean;
+    budgetAlerts: boolean;
+    subscriptionReminders: boolean;
+    weeklySummary: boolean;
+    savingsMilestones: boolean;
+  }>) => {
+    if (!user) {
+      return;
     }
-    
-    // Also update userName for backward compatibility with existing pages
-    localStorage.setItem("userName", `${firstName} ${lastName}`);
-    
-    setSavedNotification(true);
-    setTimeout(() => setSavedNotification(false), 3000);
-  };
 
-  // Auto-save handlers for other settings
-  const handleLanguageChange = (newLanguage: string) => {
-    setLanguage(newLanguage);
-    localStorage.setItem("userLanguage", newLanguage);
-  };
+    const next = {
+      language,
+      currency,
+      dateFormat,
+      darkMode,
+      budgetAlerts,
+      subscriptionReminders,
+      weeklySummary,
+      savingsMilestones,
+      ...overrides,
+    };
 
-  const handleCurrencyChange = (newCurrency: string) => {
-    setCurrency(newCurrency);
-    localStorage.setItem("userCurrency", newCurrency);
-  };
-
-  const handleDateFormatChange = (newFormat: string) => {
-    setDateFormat(newFormat);
-    localStorage.setItem("userDateFormat", newFormat);
-  };
-
-  const handleDarkModeToggle = (checked: boolean) => {
-    setDarkMode(checked);
-    localStorage.setItem("darkMode", checked.toString());
-  };
-
-  const handleBudgetAlertsToggle = (checked: boolean) => {
-    setBudgetAlerts(checked);
-    localStorage.setItem("budgetAlerts", checked.toString());
-  };
-
-  const handleSubscriptionRemindersToggle = (checked: boolean) => {
-    setSubscriptionReminders(checked);
-    localStorage.setItem("subscriptionReminders", checked.toString());
-  };
-
-  const handleWeeklySummaryToggle = (checked: boolean) => {
-    setWeeklySummary(checked);
-    localStorage.setItem("weeklySummary", checked.toString());
-  };
-
-  const handleSavingsMilestonesToggle = (checked: boolean) => {
-    setSavingsMilestones(checked);
-    localStorage.setItem("savingsMilestones", checked.toString());
+    try {
+      const saved = await updateUserSettings(user.id, next);
+      setLanguage(saved.language);
+      setCurrency(saved.currency);
+      setDateFormat(saved.dateFormat);
+      setDarkMode(saved.darkMode);
+      setBudgetAlerts(saved.budgetAlerts);
+      setSubscriptionReminders(saved.subscriptionReminders);
+      setWeeklySummary(saved.weeklySummary);
+      setSavingsMilestones(saved.savingsMilestones);
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to update settings");
+    }
   };
 
   const handleLogout = () => {
@@ -196,36 +254,75 @@ export default function Settings() {
     });
   };
 
-  const handleAddCard = () => {
-    const newCardWithId: LinkedCard = {
-      id: Date.now().toString(),
-      ...newCard
-    };
-    setLinkedCards([...linkedCards, newCardWithId]);
-    localStorage.setItem("linkedCards", JSON.stringify([...linkedCards, newCardWithId]));
-    setShowAddCardModal(false);
-    // Reset form
-    setNewCard({
-      cardNumber: '',
-      cardHolder: '',
-      cardType: 'debit',
-      bankName: '',
-      autoImport: true
-    });
+  const handleAddCard = async () => {
+    if (!user || !newCard.cardNumber || !newCard.cardHolder || !newCard.bankName) {
+      return;
+    }
+
+    try {
+      const created = await createLinkedCard(user.id, newCard);
+      setLinkedCards([...linkedCards, created]);
+      setShowAddCardModal(false);
+      setNewCard(emptyCard);
+      showSaved("Card linked successfully.");
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to add card");
+    }
   };
 
-  const handleDeleteCard = (id: string) => {
-    const updatedCards = linkedCards.filter(card => card.id !== id);
-    setLinkedCards(updatedCards);
-    localStorage.setItem("linkedCards", JSON.stringify(updatedCards));
+  const handleDeleteCard = async (id: string) => {
+    if (!user) {
+      return;
+    }
+
+    try {
+      await removeLinkedCard(user.id, id);
+      setLinkedCards(linkedCards.filter((card) => card.id !== id));
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to remove card");
+    }
   };
 
-  const toggleAutoImport = (id: string) => {
-    const updatedCards = linkedCards.map(card => 
-      card.id === id ? { ...card, autoImport: !card.autoImport } : card
-    );
-    setLinkedCards(updatedCards);
-    localStorage.setItem("linkedCards", JSON.stringify(updatedCards));
+  const toggleAutoImport = async (id: string) => {
+    if (!user) {
+      return;
+    }
+
+    const card = linkedCards.find((item) => item.id === id);
+    if (!card) {
+      return;
+    }
+
+    try {
+      const updated = await updateLinkedCard(user.id, id, {
+        autoImport: !card.autoImport,
+      });
+      setLinkedCards(linkedCards.map((item) => (item.id === id ? updated : item)));
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to update card");
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword) {
+      setErrorNotification("Enter a new password.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setErrorNotification("New password and confirmation do not match.");
+      return;
+    }
+
+    try {
+      await supabase.auth.updateUser({ password: newPassword });
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      showSaved("Password updated successfully.");
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to update password");
+    }
   };
 
   const maskCardNumber = (cardNumber: string) => {
@@ -247,15 +344,19 @@ export default function Settings() {
           </button>
         </div>
 
-        {/* Save Notification */}
-        {savedNotification && (
+        {savedNotification ? (
           <div className="bg-primary text-primary-foreground px-4 py-3 rounded-lg flex items-center gap-2 animate-in slide-in-from-top">
             <Check className="size-5" />
-            Settings saved successfully!
+            {savedNotification}
           </div>
-        )}
+        ) : null}
 
-        {/* Profile Section */}
+        {errorNotification ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {errorNotification}
+          </div>
+        ) : null}
+
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-6">
             <User className="size-5 text-primary" />
@@ -263,35 +364,22 @@ export default function Settings() {
           </div>
 
           <div className="space-y-6">
-            {/* Profile Photo */}
             <div className="flex items-center gap-6">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center overflow-hidden border-4 border-border">
-                  {profilePhoto ? (
-                    <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-4xl"></span>
-                  )}
+                  {profilePhoto ? <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-4xl"></span>}
                 </div>
                 <label className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-2 rounded-full cursor-pointer hover:opacity-90 transition-opacity shadow-lg">
                   <Camera className="size-4" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                 </label>
               </div>
               <div>
                 <h4 className="mb-1">Profile Picture</h4>
-                <p className="text-sm text-muted-foreground">
-                  Upload a photo to personalize your account
-                </p>
+                <p className="text-sm text-muted-foreground">Upload a photo to personalize your account</p>
               </div>
             </div>
 
-            {/* Name */}
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">First Name</label>
               <input
@@ -314,7 +402,6 @@ export default function Settings() {
               />
             </div>
 
-            {/* Email */}
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">Email</label>
               <input
@@ -326,10 +413,10 @@ export default function Settings() {
               />
             </div>
 
-            {/* Save Profile Button */}
             <button
-              onClick={handleSave}
-              className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              onClick={handleSaveProfile}
+              disabled={isLoading}
+              className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <Check className="size-5" />
               Save Profile Changes
@@ -337,7 +424,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Language Selection */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Languages className="size-5 text-primary" />
@@ -346,7 +432,10 @@ export default function Settings() {
 
           <select
             value={language}
-            onChange={(e) => handleLanguageChange(e.target.value)}
+            onChange={(e) => {
+              setLanguage(e.target.value);
+              void persistPreferences({ language: e.target.value });
+            }}
             className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {languages.map((lang) => (
@@ -357,7 +446,6 @@ export default function Settings() {
           </select>
         </div>
 
-        {/* Currency Selection */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="size-5 text-primary" />
@@ -366,7 +454,10 @@ export default function Settings() {
 
           <select
             value={currency}
-            onChange={(e) => handleCurrencyChange(e.target.value)}
+            onChange={(e) => {
+              setCurrency(e.target.value);
+              void persistPreferences({ currency: e.target.value });
+            }}
             className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             {currencies.map((curr) => (
@@ -375,12 +466,9 @@ export default function Settings() {
               </option>
             ))}
           </select>
-          <p className="text-sm text-muted-foreground mt-2">
-            All amounts will be displayed in your default currency
-          </p>
+          <p className="text-sm text-muted-foreground mt-2">All amounts will be displayed in your default currency</p>
         </div>
 
-        {/* Date Format Selection */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Calendar className="size-5 text-primary" />
@@ -389,34 +477,28 @@ export default function Settings() {
 
           <select
             value={dateFormat}
-            onChange={(e) => handleDateFormatChange(e.target.value)}
+            onChange={(e) => {
+              setDateFormat(e.target.value);
+              void persistPreferences({ dateFormat: e.target.value });
+            }}
             className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
-            {dateFormats.map((format) => (
-              <option key={format} value={format}>
-                {format}
+            {dateFormats.map((formatOption) => (
+              <option key={formatOption} value={formatOption}>
+                {formatOption}
               </option>
             ))}
           </select>
-          <p className="text-sm text-muted-foreground mt-2">
-            Choose the date format you prefer
-          </p>
+          <p className="text-sm text-muted-foreground mt-2">Choose the date format you prefer</p>
         </div>
 
-        {/* Dark Mode Toggle */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {darkMode ? (
-                <Moon className="size-5 text-primary" />
-              ) : (
-                <Sun className="size-5 text-primary" />
-              )}
+              {darkMode ? <Moon className="size-5 text-primary" /> : <Sun className="size-5 text-primary" />}
               <div>
                 <h3>Dark Mode</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Switch between light and dark themes
-                </p>
+                <p className="text-sm text-muted-foreground mt-1">Switch between light and dark themes</p>
               </div>
             </div>
 
@@ -424,17 +506,19 @@ export default function Settings() {
               <input
                 type="checkbox"
                 checked={darkMode}
-                onChange={(e) => handleDarkModeToggle(e.target.checked)}
+                onChange={(e) => {
+                  setDarkMode(e.target.checked);
+                  void persistPreferences({ darkMode: e.target.checked });
+                }}
                 className="sr-only peer"
               />
               <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${darkMode ? 'translate-x-7' : ''}`}></div>
+                <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${darkMode ? "translate-x-7" : ""}`}></div>
               </div>
             </label>
           </div>
         </div>
 
-        {/* Linked Cards Section */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <CreditCard className="size-5 text-primary" />
@@ -449,15 +533,14 @@ export default function Settings() {
                 <p className="text-sm mt-1">Add a card to enable automatic expense tracking</p>
               </div>
             ) : (
-              linkedCards.map(card => (
-                <div 
-                  key={card.id} 
+              linkedCards.map((card) => (
+                <div
+                  key={card.id}
                   className={`relative rounded-xl p-6 text-white shadow-lg overflow-hidden ${
-                    card.cardType === 'credit' ? 'bg-gradient-to-br from-purple-600 to-purple-800' : 'bg-gradient-to-br from-blue-600 to-blue-800'
+                    card.cardType === "credit" ? "bg-gradient-to-br from-purple-600 to-purple-800" : "bg-gradient-to-br from-blue-600 to-blue-800"
                   }`}
-                  style={{ minHeight: '180px' }}
+                  style={{ minHeight: "180px" }}
                 >
-                  {/* Card decoration */}
                   <div className="absolute top-4 right-4 opacity-20">
                     <CreditCard className="size-16" />
                   </div>
@@ -465,14 +548,10 @@ export default function Settings() {
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-8">
                       <div className="text-sm font-medium opacity-90">{card.bankName}</div>
-                      <div className="text-xs bg-white/20 px-2 py-1 rounded">
-                        {card.cardType.toUpperCase()}
-                      </div>
+                      <div className="text-xs bg-white/20 px-2 py-1 rounded">{card.cardType.toUpperCase()}</div>
                     </div>
 
-                    <div className="font-mono text-lg mb-6 tracking-wider">
-                      {maskCardNumber(card.cardNumber)}
-                    </div>
+                    <div className="font-mono text-lg mb-6 tracking-wider">{maskCardNumber(card.cardNumber)}</div>
 
                     <div className="flex items-end justify-between">
                       <div>
@@ -489,7 +568,7 @@ export default function Settings() {
                             className="sr-only peer"
                           />
                           <div className="w-10 h-5 bg-white/20 rounded-full peer-checked:bg-primary transition-colors relative">
-                            <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-4 w-4 transition-transform ${card.autoImport ? 'translate-x-5' : ''}`}></div>
+                            <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-4 w-4 transition-transform ${card.autoImport ? "translate-x-5" : ""}`}></div>
                           </div>
                           <span className="text-xs">Auto</span>
                         </label>
@@ -516,13 +595,12 @@ export default function Settings() {
             </button>
 
             <p className="text-xs text-muted-foreground text-center mt-2">
-              🔒 Card information is stored securely on your device. Enable auto-import to automatically register expenses from linked cards.
+              Card information is stored in your account. Enable auto-import to automatically register expenses from linked cards.
             </p>
           </div>
         </div>
 
-        {/* Add Card Modal */}
-        {showAddCardModal && (
+        {showAddCardModal ? (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-card border border-border rounded-xl p-6 w-96">
               <div className="flex items-center justify-between">
@@ -562,7 +640,7 @@ export default function Settings() {
                   <label className="text-sm text-muted-foreground mb-2 block">Card Type</label>
                   <select
                     value={newCard.cardType}
-                    onChange={(e) => setNewCard({ ...newCard, cardType: e.target.value as 'credit' | 'debit' })}
+                    onChange={(e) => setNewCard({ ...newCard, cardType: e.target.value as "credit" | "debit" })}
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="credit">Credit</option>
@@ -591,7 +669,7 @@ export default function Settings() {
                       className="sr-only peer"
                     />
                     <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                      <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${newCard.autoImport ? 'translate-x-7' : ''}`}></div>
+                      <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${newCard.autoImport ? "translate-x-7" : ""}`}></div>
                     </div>
                   </label>
                 </div>
@@ -606,9 +684,8 @@ export default function Settings() {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
 
-        {/* Notification Preferences */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Bell className="size-5 text-primary" />
@@ -625,11 +702,14 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   checked={budgetAlerts}
-                  onChange={(e) => handleBudgetAlertsToggle(e.target.checked)}
+                  onChange={(e) => {
+                    setBudgetAlerts(e.target.checked);
+                    void persistPreferences({ budgetAlerts: e.target.checked });
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${budgetAlerts ? 'translate-x-7' : ''}`}></div>
+                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${budgetAlerts ? "translate-x-7" : ""}`}></div>
                 </div>
               </label>
             </div>
@@ -643,11 +723,14 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   checked={subscriptionReminders}
-                  onChange={(e) => handleSubscriptionRemindersToggle(e.target.checked)}
+                  onChange={(e) => {
+                    setSubscriptionReminders(e.target.checked);
+                    void persistPreferences({ subscriptionReminders: e.target.checked });
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${subscriptionReminders ? 'translate-x-7' : ''}`}></div>
+                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${subscriptionReminders ? "translate-x-7" : ""}`}></div>
                 </div>
               </label>
             </div>
@@ -661,11 +744,14 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   checked={weeklySummary}
-                  onChange={(e) => handleWeeklySummaryToggle(e.target.checked)}
+                  onChange={(e) => {
+                    setWeeklySummary(e.target.checked);
+                    void persistPreferences({ weeklySummary: e.target.checked });
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${weeklySummary ? 'translate-x-7' : ''}`}></div>
+                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${weeklySummary ? "translate-x-7" : ""}`}></div>
                 </div>
               </label>
             </div>
@@ -679,18 +765,20 @@ export default function Settings() {
                 <input
                   type="checkbox"
                   checked={savingsMilestones}
-                  onChange={(e) => handleSavingsMilestonesToggle(e.target.checked)}
+                  onChange={(e) => {
+                    setSavingsMilestones(e.target.checked);
+                    void persistPreferences({ savingsMilestones: e.target.checked });
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${savingsMilestones ? 'translate-x-7' : ''}`}></div>
+                  <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${savingsMilestones ? "translate-x-7" : ""}`}></div>
                 </div>
               </label>
             </div>
           </div>
         </div>
 
-        {/* Security Section */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Lock className="size-5 text-primary" />
@@ -732,6 +820,7 @@ export default function Settings() {
             </div>
 
             <button
+              onClick={handleUpdatePassword}
               className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
             >
               <Check className="size-5" />
@@ -740,7 +829,6 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Delete Account */}
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="size-5 text-primary" />
@@ -760,7 +848,7 @@ export default function Settings() {
               Delete Account
             </button>
 
-            {showDeleteConfirm && (
+            {showDeleteConfirm ? (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                 <div className="bg-card border border-border rounded-xl p-6 w-96">
                   <div className="flex items-center justify-between">
@@ -775,29 +863,26 @@ export default function Settings() {
 
                   <div className="space-y-4 mt-4">
                     <p className="text-sm text-muted-foreground">
-                      Are you sure you want to delete your account? This action cannot be undone.
+                      Self-serve account deletion is not wired yet. This currently needs a server-side admin flow.
                     </p>
 
                     <button
-                      className="w-full bg-destructive text-destructive-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="w-full bg-muted text-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                     >
-                      <Trash2 className="size-5" />
-                      Confirm Delete
+                      Close
                     </button>
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
-        {/* App Info */}
         <div className="bg-secondary border border-primary/20 rounded-xl p-6 text-center">
           <div className="text-4xl mb-2">🐼🎋</div>
           <h4 className="mb-2 text-primary">Bambu v1.0</h4>
-          <p className="text-sm text-muted-foreground">
-            Your friendly student budget tracker
-          </p>
+          <p className="text-sm text-muted-foreground">Your friendly student budget tracker</p>
         </div>
       </div>
     </Layout>

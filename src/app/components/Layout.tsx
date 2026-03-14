@@ -6,6 +6,7 @@ import NotificationsPanel from "./NotificationsPanel";
 import AddTransactionModal from "./AddTransactionModal";
 import { useAuth } from "../providers/AuthProvider";
 import { createTransaction } from "../lib/transactions";
+import { getUserProfile } from "../lib/settings";
 
 interface LayoutProps {
   children: ReactNode;
@@ -17,26 +18,33 @@ export default function Layout({ children }: LayoutProps) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   useEffect(() => {
-    // Load profile photo from localStorage
-    const photo = localStorage.getItem("userPhoto");
-    setProfilePhoto(photo);
+    if (!user) {
+      setProfilePhoto(null);
+      return;
+    }
 
-    // Listen for storage changes to update photo in real-time
-    const handleStorageChange = () => {
-      const updatedPhoto = localStorage.getItem("userPhoto");
-      setProfilePhoto(updatedPhoto);
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      const profile = await getUserProfile(user.id, user.email ?? null);
+      if (isMounted) {
+        setProfilePhoto(profile.avatarUrl);
+      }
     };
 
-    window.addEventListener("storage", handleStorageChange);
-    
-    // Custom event for same-tab updates
-    window.addEventListener("profilePhotoUpdated" as any, handleStorageChange);
+    loadProfile();
+
+    const handleProfileUpdated = () => {
+      loadProfile();
+    };
+
+    window.addEventListener("profileUpdated", handleProfileUpdated);
 
     return () => {
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("profilePhotoUpdated" as any, handleStorageChange);
+      isMounted = false;
+      window.removeEventListener("profileUpdated", handleProfileUpdated);
     };
-  }, []);
+  }, [user]);
 
   const handleAddTransaction = async (transaction: {
     name: string;

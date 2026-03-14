@@ -3,6 +3,9 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   full_name text,
+  first_name text,
+  last_name text,
+  avatar_url text,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -59,6 +62,32 @@ create table if not exists public.subscriptions (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.user_settings (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  language text not null default 'English',
+  currency text not null default 'USD',
+  date_format text not null default 'MM/DD/YYYY',
+  dark_mode boolean not null default false,
+  budget_alerts boolean not null default true,
+  subscription_reminders boolean not null default true,
+  weekly_summary boolean not null default true,
+  savings_milestones boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table if not exists public.linked_cards (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  card_number text not null,
+  card_holder text not null,
+  card_type text not null check (card_type in ('credit', 'debit')),
+  bank_name text not null,
+  auto_import boolean not null default true,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -71,6 +100,9 @@ begin
   on conflict (id) do update
     set full_name = excluded.full_name,
         updated_at = timezone('utc', now());
+  insert into public.user_settings (user_id)
+  values (new.id)
+  on conflict (user_id) do nothing;
   return new;
 end;
 $$;
@@ -85,6 +117,8 @@ alter table public.transactions enable row level security;
 alter table public.savings_goals enable row level security;
 alter table public.budget_categories enable row level security;
 alter table public.subscriptions enable row level security;
+alter table public.user_settings enable row level security;
+alter table public.linked_cards enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -191,5 +225,47 @@ create policy "subscriptions_update_own"
 drop policy if exists "subscriptions_delete_own" on public.subscriptions;
 create policy "subscriptions_delete_own"
   on public.subscriptions
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "user_settings_select_own" on public.user_settings;
+create policy "user_settings_select_own"
+  on public.user_settings
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "user_settings_insert_own" on public.user_settings;
+create policy "user_settings_insert_own"
+  on public.user_settings
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "user_settings_update_own" on public.user_settings;
+create policy "user_settings_update_own"
+  on public.user_settings
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "linked_cards_select_own" on public.linked_cards;
+create policy "linked_cards_select_own"
+  on public.linked_cards
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "linked_cards_insert_own" on public.linked_cards;
+create policy "linked_cards_insert_own"
+  on public.linked_cards
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "linked_cards_update_own" on public.linked_cards;
+create policy "linked_cards_update_own"
+  on public.linked_cards
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "linked_cards_delete_own" on public.linked_cards;
+create policy "linked_cards_delete_own"
+  on public.linked_cards
   for delete
   using (auth.uid() = user_id);
