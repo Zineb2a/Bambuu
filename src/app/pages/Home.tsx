@@ -40,7 +40,12 @@ import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { BRAND_LOGO_SRC } from "../lib/branding";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
-import { getSavingsGoalAmountsInCurrency, listSavingsGoals } from "../lib/finance";
+import {
+  getBudgetAmountInCurrency,
+  getSavingsGoalAmountsInCurrency,
+  listBudgetCategories,
+  listSavingsGoals,
+} from "../lib/finance";
 import {
   formatTransactionDate,
   getTransactionAmountInCurrency,
@@ -49,7 +54,7 @@ import {
 } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
-import type { SavingsGoal } from "../types/finance";
+import type { BudgetCategory, SavingsGoal } from "../types/finance";
 import type { Transaction } from "../types/transactions";
 
 const CHART_COLORS = ["#2d6a4f", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7", "#40916c"];
@@ -60,6 +65,7 @@ export default function Home() {
   const currency = useUserCurrency();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month");
 
@@ -67,6 +73,7 @@ export default function Home() {
     if (!user) {
       setTransactions([]);
       setGoals([]);
+      setBudgetCategories([]);
       setIsLoading(false);
       return;
     }
@@ -77,18 +84,21 @@ export default function Home() {
       setIsLoading(true);
 
       try {
-        const [transactionData, goalData] = await Promise.all([
+        const [transactionData, goalData, budgetData] = await Promise.all([
           listTransactions(user.id),
           listSavingsGoals(user.id),
+          listBudgetCategories(user.id),
         ]);
         if (isMounted) {
           setTransactions(transactionData);
           setGoals(goalData);
+          setBudgetCategories(budgetData);
         }
       } catch {
         if (isMounted) {
           setTransactions([]);
           setGoals([]);
+          setBudgetCategories([]);
         }
       } finally {
         if (isMounted) {
@@ -157,6 +167,31 @@ export default function Home() {
         .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
     [currency, currentMonthTransactions],
   );
+
+  const monthlyBudgetOverview = useMemo(() => {
+    return budgetCategories
+      .map((category) => {
+        const budget = getBudgetAmountInCurrency(category, currency);
+        const spent = currentMonthTransactions
+          .filter(
+            (transaction) =>
+              transaction.type === "expense" &&
+              transaction.category.toLowerCase() === category.name.toLowerCase(),
+          )
+          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+
+        return {
+          id: category.id,
+          name: category.name,
+          budget,
+          spent,
+          percentage: budget > 0 ? (spent / budget) * 100 : 0,
+          remaining: budget - spent,
+          isOverBudget: spent > budget,
+        };
+      })
+      .sort((a, b) => b.percentage - a.percentage);
+  }, [budgetCategories, currency, currentMonthTransactions]);
 
   const expensesByCategory = useMemo(() => {
     const now = new Date();
@@ -441,6 +476,47 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
+              <h3 className="mb-4 flex items-center gap-2">
+                <Wallet className="size-5 text-primary" />
+                {t("home.monthlyBudgetStatus")}
+              </h3>
+              {monthlyBudgetOverview.length === 0 ? (
+                <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                  {t("home.noBudgetCategories")}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {monthlyBudgetOverview.map((category) => (
+                    <div key={category.id} className="rounded-lg bg-muted/50 px-4 py-3">
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div className="font-medium">{localizeCategory(category.name)}</div>
+                        <div className={`text-xs ${category.isOverBudget ? "text-destructive" : "text-primary"}`}>
+                          {category.isOverBudget
+                            ? t("home.overBudget", {
+                                amount: formatCurrency(Math.abs(category.remaining), currency),
+                              })
+                            : t("home.remainingBudget", {
+                                amount: formatCurrency(category.remaining, currency),
+                              })}
+                        </div>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className={`h-full rounded-full transition-all ${category.isOverBudget ? "bg-destructive" : "bg-primary"}`}
+                          style={{ width: `${Math.min(category.percentage, 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{formatCurrency(category.spent, currency)} / {formatCurrency(category.budget, currency)}</span>
+                        <span>{t("home.budgetUsed", { value: category.percentage.toFixed(0) })}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
