@@ -50,9 +50,15 @@ export function localizeCategory(language: AppLanguage, value: string) {
 
 export function localizeFrequency(
   language: AppLanguage,
-  value: "daily" | "weekly" | "monthly" | "yearly",
+  value: "daily" | "weekly" | "monthly" | "yearly" | null | undefined
 ) {
-  return frequencyTranslations[value][language];
+  if (!value || !(value in frequencyTranslations)) {
+    // Fallback: Capitalize first letter or return 'Recurring'
+    return value && typeof value === "string"
+      ? value.charAt(0).toUpperCase() + value.slice(1)
+      : "Recurring";
+  }
+  return frequencyTranslations[value as keyof typeof frequencyTranslations][language];
 }
 
 export function localizeInvestmentType(
