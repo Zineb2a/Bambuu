@@ -25,21 +25,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!isMounted) {
-        return;
-      }
+    const initializeSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
 
-      if (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        if (error) {
+          setSession(null);
+          setUser(null);
+          await supabase.auth.signOut({ scope: "local" });
+        } else {
+          setSession(data.session);
+          setUser(data.session?.user ?? null);
+        }
+      } catch {
+        if (!isMounted) {
+          return;
+        }
+
         setSession(null);
         setUser(null);
-      } else {
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
+    };
 
-      setLoading(false);
-    });
+    initializeSession();
 
     const {
       data: { subscription },

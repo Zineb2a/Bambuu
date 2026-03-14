@@ -10,6 +10,13 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.profiles add column if not exists full_name text;
+alter table public.profiles add column if not exists first_name text;
+alter table public.profiles add column if not exists last_name text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.profiles add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
 create table if not exists public.transactions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -26,6 +33,11 @@ create table if not exists public.transactions (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.transactions add column if not exists is_recurring boolean not null default false;
+alter table public.transactions add column if not exists recurring_frequency text;
+alter table public.transactions add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.transactions add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
 create table if not exists public.savings_goals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -38,6 +50,12 @@ create table if not exists public.savings_goals (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.savings_goals add column if not exists current_amount numeric(12,2) not null default 0;
+alter table public.savings_goals add column if not exists emoji text not null default '💰';
+alter table public.savings_goals add column if not exists pinned boolean not null default false;
+alter table public.savings_goals add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.savings_goals add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
 create table if not exists public.budget_categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -48,6 +66,11 @@ create table if not exists public.budget_categories (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.budget_categories add column if not exists icon text not null default 'shopping';
+alter table public.budget_categories add column if not exists color text not null default '#95d5b2';
+alter table public.budget_categories add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.budget_categories add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -61,6 +84,11 @@ create table if not exists public.subscriptions (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.subscriptions add column if not exists emoji text not null default '📱';
+alter table public.subscriptions add column if not exists has_student_discount boolean not null default false;
+alter table public.subscriptions add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.subscriptions add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 create table if not exists public.user_settings (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -76,6 +104,17 @@ create table if not exists public.user_settings (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+alter table public.user_settings add column if not exists language text not null default 'English';
+alter table public.user_settings add column if not exists currency text not null default 'USD';
+alter table public.user_settings add column if not exists date_format text not null default 'MM/DD/YYYY';
+alter table public.user_settings add column if not exists dark_mode boolean not null default false;
+alter table public.user_settings add column if not exists budget_alerts boolean not null default true;
+alter table public.user_settings add column if not exists subscription_reminders boolean not null default true;
+alter table public.user_settings add column if not exists weekly_summary boolean not null default true;
+alter table public.user_settings add column if not exists savings_milestones boolean not null default true;
+alter table public.user_settings add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.user_settings add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
 create table if not exists public.linked_cards (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -87,6 +126,10 @@ create table if not exists public.linked_cards (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.linked_cards add column if not exists auto_import boolean not null default true;
+alter table public.linked_cards add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.linked_cards add column if not exists updated_at timestamptz not null default timezone('utc', now());
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -125,6 +168,12 @@ create policy "profiles_select_own"
   on public.profiles
   for select
   using (auth.uid() = id);
+
+drop policy if exists "profiles_insert_own" on public.profiles;
+create policy "profiles_insert_own"
+  on public.profiles
+  for insert
+  with check (auth.uid() = id);
 
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own"

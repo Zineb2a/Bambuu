@@ -248,10 +248,23 @@ export default function Settings() {
     }
   };
 
-  const handleLogout = () => {
-    supabase.auth.signOut().finally(() => {
-      navigate("/auth", { replace: true });
-    });
+  const handleLogout = async () => {
+    setErrorNotification("");
+
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : "Failed to log out");
+      return;
+    }
+
+    localStorage.removeItem("supabase.auth.token");
+    sessionStorage.clear();
+    navigate("/auth", { replace: true });
+    window.location.assign("/auth");
   };
 
   const handleAddCard = async () => {
