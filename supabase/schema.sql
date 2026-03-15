@@ -43,6 +43,15 @@ alter table public.transactions add column if not exists currency text not null 
 alter table public.transactions add column if not exists original_amount numeric(12,2);
 alter table public.transactions add column if not exists created_at timestamptz not null default timezone('utc', now());
 alter table public.transactions add column if not exists updated_at timestamptz not null default timezone('utc', now());
+
+alter table public.transactions
+  drop constraint if exists transactions_recurring_frequency_check;
+
+alter table public.transactions
+  add constraint transactions_recurring_frequency_check check (
+    recurring_frequency is null or recurring_frequency in ('daily', 'weekly', 'biweekly', 'monthly', 'yearly')
+  );
+
 update public.transactions set original_amount = amount where original_amount is null;
 
 create table if not exists public.savings_goals (
