@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Filter, Search, ShoppingCart, Utensils, Bus, Film, Book } from "lucide-react";
+import { Filter, Search } from "lucide-react";
 import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
@@ -7,14 +7,31 @@ import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
+import { getCategoryIcon } from "../lib/categoryIcons";
+import { usePlaidData, plaidToTransaction } from "../hooks/usePlaidData";
 
 export default function Expenses() {
   const { user } = useAuth();
   const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [supabaseTxns, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+
+  const { allTransactions: plaidRawTxns } = usePlaidData();
+
+  const transactions = useMemo(() => {
+    const supabaseExpenses = supabaseTxns; // already filtered to expenses below
+    if (!user || plaidRawTxns.length === 0) return supabaseExpenses;
+    const plaidExpenses = plaidRawTxns
+      .filter((t) => t.amount > 0)
+      .map((t) => plaidToTransaction(t, user.id));
+    const plaidIds = new Set(plaidExpenses.map((t) => t.id));
+    const supabaseOnly = supabaseExpenses.filter((t) => !plaidIds.has(t.id));
+    return [...plaidExpenses, ...supabaseOnly].sort(
+      (a, b) => new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime(),
+    );
+  }, [supabaseTxns, plaidRawTxns, user]);
 
   useEffect(() => {
     if (!user) {
@@ -61,21 +78,6 @@ export default function Expenses() {
     (sum, expense) => sum + getTransactionAmountInCurrency(expense, currency),
     0,
   );
-
-  const getCategoryIcon = (category: string) => {
-    switch (category.toLowerCase()) {
-      case "food":
-        return <Utensils className="size-4" />;
-      case "books":
-        return <Book className="size-4" />;
-      case "transport":
-        return <Bus className="size-4" />;
-      case "entertainment":
-        return <Film className="size-4" />;
-      default:
-        return <ShoppingCart className="size-4" />;
-    }
-  };
 
   return (
     <Layout>

@@ -14,6 +14,17 @@ import {
   Calendar,
   CalendarDays,
   CalendarRange,
+  Loader2,
+  Home as HomeIcon,
+  Briefcase,
+  Heart,
+  Scissors,
+  GraduationCap,
+  CreditCard,
+  Landmark,
+  Plane,
+  Building,
+  ChevronDown,
 } from "lucide-react";
 import {
   PieChart,
@@ -32,9 +43,11 @@ import {
   endOfWeek,
   endOfYear,
   format,
+  isWithinInterval,
   startOfMonth,
   startOfWeek,
   startOfYear,
+  subDays,
 } from "date-fns";
 import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
@@ -48,16 +61,19 @@ import {
   listSavingsGoals,
 } from "../lib/finance";
 import {
+  createTransaction,
   formatTransactionDate,
-  getTransactionAmountInInterval,
   getTransactionAmountInCurrency,
   listTransactions,
+  parseTransactionDate,
 } from "../lib/transactions";
 import { getUserSettings } from "../lib/settings";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal } from "../types/finance";
 import type { Transaction } from "../types/transactions";
+import { getCategoryIcon } from "../lib/categoryIcons";
+import { usePlaidData, plaidToTransaction } from "../hooks/usePlaidData";
 
 const CHART_COLORS = ["#2d6a4f", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7", "#40916c"];
 
@@ -72,8 +88,23 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month");
   const [showContributionModal, setShowContributionModal] = useState(false);
+  const [expandedBudgetCategories, setExpandedBudgetCategories] = useState<Set<string>>(new Set());
   const [contributionAmount, setContributionAmount] = useState("");
   const [contributionNote, setContributionNote] = useState("");
+
+  const { allTransactions: plaidRawTxns } = usePlaidData();
+
+  // Merged list: Supabase transactions + Plaid transactions converted to the same shape,
+  // deduplicated so re-renders don't create duplicates.
+  const allTransactions = useMemo(() => {
+    if (!user || plaidRawTxns.length === 0) return transactions;
+    const plaidConverted = plaidRawTxns.map((t) => plaidToTransaction(t, user.id));
+    const plaidIds = new Set(plaidConverted.map((t) => t.id));
+    const supabaseOnly = transactions.filter((t) => !plaidIds.has(t.id));
+    return [...plaidConverted, ...supabaseOnly].sort(
+      (a, b) => new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime(),
+    );
+  }, [transactions, plaidRawTxns, user]);
 
   useEffect(() => {
     if (!user) {
@@ -147,58 +178,101 @@ export default function Home() {
   const currentSavings = pinnedGoalAmounts.currentAmount;
   const savingsProgress = savingsGoal ? (currentSavings / savingsGoal) * 100 : 0;
 
+  const currentMonthTransactions = useMemo(() => {
+    const now = new Date();
+    const start = startOfMonth(now);
+    const end = endOfMonth(now);
+    return allTransactions.filter((transaction) =>
+      isWithinInterval(parseTransactionDate(transaction.occurredOn), { start, end }),
+    );
+  }, [allTransactions]);
+
   const balance = useMemo(
     () =>
-      transactions.reduce(
+      allTransactions.reduce(
         (sum, transaction) =>
           transaction.type === "income"
             ? sum + getTransactionAmountInCurrency(transaction, currency)
             : sum - getTransactionAmountInCurrency(transaction, currency),
         0,
       ),
-    [currency, transactions],
+    [currency, allTransactions],
   );
 
   const monthlyIncome = useMemo(
-    () => {
-      const now = new Date();
-      const start = startOfMonth(now);
-      const end = endOfMonth(now);
-
-      return transactions
+    () =>
+      currentMonthTransactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
-    },
-    [currency, transactions],
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+    [currency, currentMonthTransactions],
   );
 
   const monthlyExpenses = useMemo(
-    () => {
-      const now = new Date();
-      const start = startOfMonth(now);
-      const end = endOfMonth(now);
-
-      return transactions
+    () =>
+      currentMonthTransactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
-    },
-    [currency, transactions],
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+    [currency, currentMonthTransactions],
   );
 
   const monthlyBudgetOverview = useMemo(() => {
-    const now = new Date();
-    const start = startOfMonth(now);
-    const end = endOfMonth(now);
-    const rankedCategories = budgetCategories
+    // Deduplicate budget categories by name
+    const seenNames = new Set<string>();
+    const uniqueCategories = budgetCategories.filter((c) => {
+      const key = c.name.toLowerCase().trim();
+      if (seenNames.has(key)) return false;
+      seenNames.add(key);
+      return true;
+    });
+
+    // H-G fix: explicit Plaid→budget mapping prevents double-counting (e.g. "Rent And Utilities" → rent only)
+    const normalizeCat = (s: string) =>
+      s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9 ]/g, "").trim();
+    const PLAID_TO_BUDGET: Record<string, string> = {
+      "food and drink": "food and groceries",
+      "food and drug stores": "food and groceries",
+      "groceries": "food and groceries",
+      "rent and utilities": "rent and housing",
+      "home improvement": "rent and housing",
+      "transportation": "transport",
+      "travel": "transport",
+      "general merchandise": "shopping",
+      "shops": "shopping",
+      "medical": "health",
+      "healthcare": "health",
+      "entertainment": "entertainment",
+      "recreation": "entertainment",
+      "service": "other",
+      "transfer": "other",
+      "bank fees": "other",
+    };
+    const categoriesMatch = (budgetName: string, txCategory: string): boolean => {
+      const budgetNorm = normalizeCat(budgetName);
+      const txNorm = normalizeCat(txCategory);
+      const mapped = PLAID_TO_BUDGET[txNorm];
+      if (mapped !== undefined) return budgetNorm === mapped;
+      // Fallback: exact normalized match for non-Plaid transactions
+      return budgetNorm === txNorm;
+    };
+
+    const rankedCategories = uniqueCategories
       .map((category) => {
         const budget = getBudgetAmountInCurrency(category, currency);
-        const spent = transactions
+        const spent = currentMonthTransactions
           .filter(
             (transaction) =>
               transaction.type === "expense" &&
-              transaction.category.toLowerCase() === category.name.toLowerCase(),
+              categoriesMatch(category.name, transaction.category),
           )
-          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
+          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+
+        const matchingTransactions = currentMonthTransactions
+          .filter(
+            (transaction) =>
+              transaction.type === "expense" &&
+              categoriesMatch(category.name, transaction.category),
+          )
+          .sort((a, b) => new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime());
 
         return {
           id: category.id,
@@ -209,34 +283,38 @@ export default function Home() {
           remaining: budget - spent,
           isOverBudget: spent > budget,
           pinned: category.pinned,
+          transactions: matchingTransactions,
         };
       })
       .sort((a, b) => {
         if (a.pinned !== b.pinned) {
           return a.pinned ? -1 : 1;
         }
-
         return b.percentage - a.percentage;
       });
 
     const pinnedCategories = rankedCategories.filter((category) => category.pinned);
     return pinnedCategories.length > 0 ? pinnedCategories : rankedCategories.slice(0, 4);
-  }, [budgetCategories, currency, transactions]);
+  }, [budgetCategories, currency, currentMonthTransactions]);
 
   const expensesByCategory = useMemo(() => {
     const now = new Date();
     const interval =
       timePeriod === "week"
-        ? { start: startOfWeek(now), end: endOfWeek(now) }
+        ? { start: subDays(now, 6), end: now }
         : timePeriod === "year"
           ? { start: startOfYear(now), end: endOfYear(now) }
           : { start: startOfMonth(now), end: endOfMonth(now) };
 
-    const expenseTransactions = transactions.filter((transaction) => transaction.type === "expense");
+    const expenseTransactions = allTransactions.filter(
+      (transaction) =>
+        transaction.type === "expense" &&
+        isWithinInterval(parseTransactionDate(transaction.occurredOn), interval),
+    );
 
     const byCategory = expenseTransactions.reduce<Record<string, number>>((acc, transaction) => {
       acc[transaction.category] =
-        (acc[transaction.category] ?? 0) + getTransactionAmountInInterval(transaction, currency, interval.start, interval.end);
+        (acc[transaction.category] ?? 0) + getTransactionAmountInCurrency(transaction, currency);
       return acc;
     }, {});
 
@@ -245,25 +323,27 @@ export default function Home() {
       value,
       color: CHART_COLORS[index % CHART_COLORS.length],
     }));
-  }, [currency, timePeriod, transactions]);
+  }, [currency, timePeriod, allTransactions]);
 
   const timeSeriesData = useMemo(() => {
     const now = new Date();
 
     if (timePeriod === "week") {
-      const start = startOfWeek(now);
       return Array.from({ length: 7 }, (_, index) => {
-        const day = new Date(start);
-        day.setDate(start.getDate() + index);
+        const day = subDays(now, 6 - index);
+        const sameDay = allTransactions.filter(
+          (transaction) =>
+            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM-dd") === format(day, "yyyy-MM-dd"),
+        );
 
         return {
           period: format(day, "EEE"),
-          income: transactions
+          income: sameDay
             .filter((transaction) => transaction.type === "income")
-            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0),
-          expenses: transactions
+            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+          expenses: sameDay
             .filter((transaction) => transaction.type === "expense")
-            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0),
+            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
         };
       });
     }
@@ -273,14 +353,19 @@ export default function Home() {
         start: startOfYear(now),
         end: endOfMonth(now),
       }).map((month) => {
+        const inMonth = allTransactions.filter(
+          (transaction) =>
+            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === format(month, "yyyy-MM"),
+        );
+
         return {
           period: format(month, "MMM"),
-          income: transactions
+          income: inMonth
             .filter((transaction) => transaction.type === "income")
-            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)), 0),
-          expenses: transactions
+            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+          expenses: inMonth
             .filter((transaction) => transaction.type === "expense")
-            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)), 0),
+            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
         };
       });
     }
@@ -291,44 +376,29 @@ export default function Home() {
 
     for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
       const currentDay = new Date(day);
+      const sameDay = allTransactions.filter(
+        (transaction) =>
+          format(parseTransactionDate(transaction.occurredOn), "yyyy-MM-dd") === format(currentDay, "yyyy-MM-dd"),
+      );
       result.push({
         period: format(currentDay, "MMM d"),
-        income: transactions
+        income: sameDay
           .filter((transaction) => transaction.type === "income")
-          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, currentDay, currentDay), 0),
-        expenses: transactions
+          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+        expenses: sameDay
           .filter((transaction) => transaction.type === "expense")
-          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, currentDay, currentDay), 0),
+          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
       });
     }
 
     return result.filter((entry) => entry.income > 0 || entry.expenses > 0);
-  }, [currency, timePeriod, transactions]);
+  }, [currency, timePeriod, allTransactions]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return t("home.goodMorning");
-    if (hour < 18) return t("home.goodAfternoon");
-    return t("home.goodEvening");
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category.toLowerCase()) {
-      case "food":
-        return <Utensils className="size-4" />;
-      case "books":
-        return <Book className="size-4" />;
-      case "transport":
-        return <Bus className="size-4" />;
-      case "entertainment":
-        return <Film className="size-4" />;
-      case "job":
-      case "scholarship":
-      case "income":
-        return <TrendingUp className="size-4" />;
-      default:
-        return <ShoppingCart className="size-4" />;
-    }
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
   };
 
   const handleContributeToGoal = async () => {
@@ -336,14 +406,32 @@ export default function Home() {
       return;
     }
 
+    const amount = parseFloat(contributionAmount);
+    const today = new Date().toISOString().slice(0, 10);
+
     await createGoalContribution(user.id, pinnedGoal.id, {
-      amount: parseFloat(contributionAmount),
+      amount,
       currency,
-      originalAmount: parseFloat(contributionAmount),
+      originalAmount: amount,
       contributionType: "manual",
       source: "home_bamboo",
       note: contributionNote || null,
     });
+
+    // Record as an expense transaction so it appears in Transactions/Expenses
+    // and deducts from the balance just like any other spending.
+    const newTxn = await createTransaction(user.id, {
+      name: `Savings: ${pinnedGoal.name}`,
+      amount,
+      currency,
+      originalAmount: amount,
+      category: "Savings",
+      occurredOn: today,
+      type: "expense",
+      isRecurring: false,
+    });
+
+    setTransactions((current) => [newTxn, ...current]);
 
     setGoals((current) =>
       current.map((goal) =>
@@ -351,10 +439,9 @@ export default function Home() {
           ? {
               ...goal,
               currentAmount:
-                goal.currentAmount + convertCurrency(parseFloat(contributionAmount), currency, goal.currency),
+                goal.currentAmount + convertCurrency(amount, currency, goal.currency),
               originalCurrentAmount:
-                goal.originalCurrentAmount +
-                convertCurrency(parseFloat(contributionAmount), currency, goal.currency),
+                goal.originalCurrentAmount + convertCurrency(amount, currency, goal.currency),
             }
           : goal,
       ),
@@ -363,12 +450,21 @@ export default function Home() {
     setContributionAmount("");
     setContributionNote("");
     setShowContributionModal(false);
+    window.dispatchEvent(new Event("transactionsChanged"));
     window.dispatchEvent(new Event("financialDataChanged"));
   };
 
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-6 py-8">
+        {isLoading && (
+          <div className="flex items-center gap-2 text-muted-foreground mb-4 animate-pulse">
+            <Loader2 className="size-4 animate-spin" />
+            <span className="text-sm">Syncing transactions…</span>
+          </div>
+        )}
+
+        {/* Personalized Greeting */}
         <div className="mb-6">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl">
@@ -470,15 +566,17 @@ export default function Home() {
                           data={expensesByCategory}
                           cx="50%"
                           cy="50%"
-                          labelLine={false}
-                          label={({ name, value }) => `${name}: ${formatCurrency(Number(value), currency)}`}
-                          outerRadius={80}
+                          outerRadius={95}
                           dataKey="value"
                         >
                           {expensesByCategory.map((entry, index) => (
                             <Cell key={`home-spending-cell-${entry.name}-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
+                        <Tooltip
+                          formatter={(value: number) => formatCurrency(value, currency)}
+                          contentStyle={{ background: "var(--color-card)", border: "1px solid var(--color-border)", borderRadius: "8px" }}
+                        />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -489,8 +587,9 @@ export default function Home() {
                   ) : (
                     expensesByCategory.map((category, index) => (
                       <div key={`legend-${category.name}-${index}`} className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: category.color }} />
-                        <span className="text-sm text-muted-foreground">{localizeCategory(category.name)}</span>
+                        <div className="w-3 h-3 flex-shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
+                        <span className="text-sm text-muted-foreground truncate">{localizeCategory(category.name)}</span>
+                        <span className="text-sm ml-auto">{formatCurrency(category.value, currency)}</span>
                       </div>
                     ))
                   )}
@@ -500,7 +599,7 @@ export default function Home() {
               <div className="bg-card rounded-xl p-6 shadow-sm border border-border">
                 <h3 className="mb-4 flex items-center gap-2">
                   <TrendingUp className="size-5 text-primary" />
-                  {t("home.monthlyOverview")}
+                  {timePeriod === "week" ? "Weekly Overview" : timePeriod === "year" ? "Yearly Overview" : "Monthly Overview"}
                 </h3>
                 <div suppressHydrationWarning>
                   <ResponsiveContainer width="100%" height={250}>
@@ -543,32 +642,92 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {monthlyBudgetOverview.map((category) => (
-                    <div key={category.id} className="rounded-lg bg-muted/50 px-4 py-3">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div className="font-medium">{localizeCategory(category.name)}</div>
-                        <div className={`text-xs ${category.isOverBudget ? "text-destructive" : "text-primary"}`}>
-                          {category.isOverBudget
-                            ? t("home.overBudget", {
-                                amount: formatCurrency(Math.abs(category.remaining), currency),
-                              })
-                            : t("home.remainingBudget", {
-                                amount: formatCurrency(category.remaining, currency),
-                              })}
-                        </div>
+                  {monthlyBudgetOverview.map((category) => {
+                    const isExpanded = expandedBudgetCategories.has(category.id);
+                    return (
+                      <div key={category.id} className="rounded-lg bg-muted/50 overflow-hidden">
+                        <button
+                          className="w-full px-4 py-3 text-left"
+                          onClick={() =>
+                            setExpandedBudgetCategories((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(category.id)) next.delete(category.id);
+                              else next.add(category.id);
+                              return next;
+                            })
+                          }
+                        >
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium">{localizeCategory(category.name)}</div>
+                              {category.transactions.length > 0 && (
+                                <span className="text-xs text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
+                                  {category.transactions.length}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className={`text-xs ${category.isOverBudget ? "text-destructive" : "text-primary"}`}>
+                                {category.isOverBudget
+                                  ? t("home.overBudget", {
+                                      amount: formatCurrency(Math.abs(category.remaining), currency),
+                                    })
+                                  : t("home.remainingBudget", {
+                                      amount: formatCurrency(category.remaining, currency),
+                                    })}
+                              </div>
+                              <div className={`flex items-center justify-center w-7 h-7 rounded-md border transition-colors duration-200 ${isExpanded ? "bg-primary border-primary text-primary-foreground" : "bg-secondary border-border text-muted-foreground"}`}>
+                                <ChevronDown
+                                  className={`size-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className={`h-full rounded-full transition-all ${category.isOverBudget ? "bg-destructive" : "bg-primary"}`}
+                              style={{ width: `${Math.min(category.percentage, 100)}%` }}
+                            />
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{formatCurrency(category.spent, currency)} / {formatCurrency(category.budget, currency)}</span>
+                            <span>{t("home.budgetUsed", { value: category.percentage.toFixed(0) })}</span>
+                          </div>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-border">
+                            {category.transactions.length === 0 ? (
+                              <div className="px-4 py-3 text-sm text-muted-foreground">
+                                No transactions this month.
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-border">
+                                {category.transactions.map((tx) => (
+                                  <div key={tx.id} className="flex items-center justify-between px-4 py-2.5">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                      <div className="w-7 h-7 rounded-full bg-accent flex items-center justify-center flex-shrink-0 text-sm">
+                                        {getCategoryIcon(tx.category, tx.type)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <div className="text-sm truncate">{tx.name}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {formatTransactionDate(tx.occurredOn)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="text-sm font-medium text-foreground ml-3 flex-shrink-0">
+                                      -{formatCurrency(getTransactionAmountInCurrency(tx, currency), currency)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className={`h-full rounded-full transition-all ${category.isOverBudget ? "bg-destructive" : "bg-primary"}`}
-                          style={{ width: `${Math.min(category.percentage, 100)}%` }}
-                        />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{formatCurrency(category.spent, currency)} / {formatCurrency(category.budget, currency)}</span>
-                        <span>{t("home.budgetUsed", { value: category.percentage.toFixed(0) })}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -585,18 +744,18 @@ export default function Home() {
                   <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
                     {t("home.loadingTransactions")}
                   </div>
-                ) : transactions.length === 0 ? (
+                ) : allTransactions.length === 0 ? (
                   <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
                     {t("home.noTransactions")}
                   </div>
                 ) : (
-                  transactions.slice(0, 6).map((transaction) => (
+                  allTransactions.slice(0, 6).map((transaction) => (
                     <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-secondary transition-colors">
                       <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                           transaction.type === "income" ? "bg-primary/10 text-primary" : "bg-accent"
                         }`}>
-                          {getCategoryIcon(transaction.category)}
+                          {getCategoryIcon(transaction.category, transaction.type)}
                         </div>
                         <div>
                           <div>{transaction.name}</div>
@@ -777,3 +936,4 @@ export default function Home() {
     </Layout>
   );
 }
+

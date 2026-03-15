@@ -447,6 +447,45 @@ export default function BudgetGoals() {
     window.dispatchEvent(new Event("financialDataChanged"));
   };
 
+  const DEFAULT_BUDGET_AMOUNTS: Record<string, number> = {
+    "food & groceries": 400,
+    "transport": 150,
+    "rent & housing": 1200,
+    "utilities": 200,
+    "school / books": 150,
+    "entertainment": 150,
+    "shopping": 200,
+    "health": 100,
+    "subscriptions": 60,
+    "other": 100,
+  };
+
+  const handleResetBudgetsToDefaults = async () => {
+    if (!user || !confirm("Reset all budget category amounts to the new defaults? This will update every category to the new suggested amounts.")) {
+      return;
+    }
+
+    const updates = categories.map((category) => {
+      const key = category.name.toLowerCase().trim();
+      const newAmount = DEFAULT_BUDGET_AMOUNTS[key];
+      if (newAmount === undefined) return null;
+      return updateBudgetCategory(user.id, category.id, {
+        budget: newAmount,
+        currency,
+        originalBudget: newAmount,
+      });
+    }).filter(Boolean);
+
+    const updated = await Promise.all(updates as Promise<BudgetCategory>[]);
+    setCategories((prev) =>
+      prev.map((c) => {
+        const u = updated.find((uc) => uc.id === c.id);
+        return u ?? c;
+      })
+    );
+    window.dispatchEvent(new Event("financialDataChanged"));
+  };
+
   const handlePromptSetBudget = (categoryName: string) => {
     setNewCategoryName(categoryName);
     setNewCategoryBudget("");
@@ -787,13 +826,22 @@ export default function BudgetGoals() {
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <h3>{t("budgetGoalsPage.categoryBudgets")}</h3>
-            <button
-              onClick={() => setAddingCategory(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
-            >
-              <Plus className="size-4" />
-              {t("budgetGoalsPage.addCategory")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleResetBudgetsToDefaults}
+                className="flex items-center gap-2 px-3 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-accent transition-colors text-sm"
+                title="Reset all category budgets to recommended defaults"
+              >
+                Reset to defaults
+              </button>
+              <button
+                onClick={() => setAddingCategory(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+              >
+                <Plus className="size-4" />
+                {t("budgetGoalsPage.addCategory")}
+              </button>
+            </div>
           </div>
 
           {categoryPinFeedback ? (

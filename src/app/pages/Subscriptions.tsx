@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Plus, Edit2, X, Calendar, DollarSign, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Edit2, X, Calendar, DollarSign, AlertCircle, Sparkles, CheckCircle } from "lucide-react";
 import Layout from "../components/Layout";
 import StudentDiscountDetectorCard from "../components/StudentDiscountDetectorCard";
 import { useUserCurrency } from "../hooks/useUserCurrency";
@@ -23,6 +23,8 @@ import {
   normalizeMerchantName,
   type StudentDiscountOpportunity,
 } from "../../shared/studentDiscountDetector";
+import { usePlaidData, plaidToTransaction } from "../hooks/usePlaidData";
+import { useDetectedSubscriptions } from "../hooks/useDetectedSubscriptions";
 
 const emojis = ["🎬", "🎵", "🤖", "💻", "📝", "🎨", "🖼️", "📱", "🎮", "📚", "🏋️", "📰", "🎓", "☁️", "🔒", "📊"];
 
@@ -51,7 +53,7 @@ export default function Subscriptions() {
   const { t } = useI18n();
   const currency = useUserCurrency();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [supabaseTxns, setTransactions] = useState<Transaction[]>([]);
   const [studentDiscounts, setStudentDiscounts] = useState<StudentDiscountOpportunity[]>([]);
   const [userCountry, setUserCountry] = useState("US");
   const [isLoading, setIsLoading] = useState(true);
@@ -60,6 +62,20 @@ export default function Subscriptions() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [newSubscription, setNewSubscription] = useState(emptySubscription);
+  const [addedFromDetection, setAddedFromDetection] = useState<Set<string>>(new Set());
+
+  const { allTransactions: plaidRawTxns } = usePlaidData();
+
+  // Merge Plaid + Supabase transactions for subscription detection
+  const transactions = useMemo(() => {
+    if (!user || plaidRawTxns.length === 0) return supabaseTxns;
+    const plaidConverted = plaidRawTxns.map((t) => plaidToTransaction(t, user.id));
+    const plaidIds = new Set(plaidConverted.map((t) => t.id));
+    const supabaseOnly = supabaseTxns.filter((t) => !plaidIds.has(t.id));
+    return [...plaidConverted, ...supabaseOnly];
+  }, [supabaseTxns, plaidRawTxns, user]);
+
+  const detectedSubscriptions = useDetectedSubscriptions(transactions, subscriptions);
 
   useEffect(() => {
     if (!user) {
@@ -204,6 +220,23 @@ export default function Subscriptions() {
     0,
   );
 
+  const handleAddDetectedSubscription = async (serviceName: string, amount: number, emoji: string, category: string, renewalDate: string) => {
+    if (!user) return;
+    const created = await createSubscription(user.id, {
+      emoji,
+      name: serviceName,
+      category,
+      monthlyCost: amount,
+      currency,
+      originalMonthlyCost: amount,
+      renewalDate,
+      hasStudentDiscount: false,
+    });
+    setSubscriptions((prev) => [...prev, created]);
+    setAddedFromDetection((prev) => new Set(prev).add(serviceName));
+    window.dispatchEvent(new Event("financialDataChanged"));
+  };
+
   const handleAddSubscription = async () => {
     if (!user || !newSubscription.name || !newSubscription.renewalDate) {
       return;
@@ -322,6 +355,66 @@ export default function Subscriptions() {
           currency={currency}
           isLoading={isDiscountDetectorLoading}
         />
+
+        {detectedSubscriptions.length > 0 && (
+          <div className="bg-card border border-primary/30 rounded-xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles className="size-5 text-primary" />
+              <h3 className="font-semibold">Detected from your transactions</h3>
+              <span className="ml-auto text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                {detectedSubscriptions.length} found
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              We spotted these recurring charges in your linked accounts. Add them to track your spending.
+            </p>
+            <div className="space-y-3">
+              {detectedSubscriptions.map((detected) => {
+                const alreadyAdded = addedFromDetection.has(detected.known.name);
+                return (
+                  <div
+                    key={detected.known.name}
+                    className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">{detected.known.emoji}</span>
+                      <div>
+                        <div className="font-medium">{detected.known.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatCurrency(detected.amount, currency)}/mo
+                          {detected.occurrences > 1 && ` · seen ${detected.occurrences}×`}
+                          {" · "}
+                          <span className="capitalize">{detected.known.category}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {alreadyAdded ? (
+                      <span className="flex items-center gap-1 text-xs text-primary">
+                        <CheckCircle className="size-4" />
+                        Added
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() =>
+                          handleAddDetectedSubscription(
+                            detected.known.name,
+                            detected.amount,
+                            detected.known.emoji,
+                            detected.known.category,
+                            detected.lastSeenDate,
+                          )
+                        }
+                        className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
+                      >
+                        + Add
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           {isLoading ? (
