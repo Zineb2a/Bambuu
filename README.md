@@ -36,6 +36,9 @@ This makes Bambuu more than an expense tracker. It is a practical money manageme
 - `Tailwind CSS`
 - `Recharts`
 
+## Check it out here!!
+Bambuu: https://bambuu.me/
+
 ## Run Locally
 
 ```bash
