@@ -49,15 +49,86 @@ This makes Bambuu more than an expense tracker. It is a practical money manageme
 
 ## Run Locally
 
+### Prerequisites
+
+- Node.js 18+
+- A [Plaid](https://dashboard.plaid.com) account (Sandbox is free)
+- A [Supabase](https://supabase.com) project
+
+### 1. Clone and install frontend dependencies
+
 ```bash
+git clone https://github.com/Zineb2a/Bambuu.git
+cd Bambuu
 npm install
+```
+
+### 2. Configure environment variables
+
+```bash
 cp .env.example .env
+```
+
+Open `.env` and fill in the values:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_BASE_URL=http://localhost:3001
+```
+
+### 3. Start the Plaid backend
+
+The backend is a small Express server that handles Plaid API calls securely.
+
+```bash
+cd server
+npm install
+```
+
+Create a `.env` file inside the `server/` folder (or the root `.env` is loaded automatically):
+
+```env
+PLAID_CLIENT_ID=your-plaid-client-id
+PLAID_SECRET=your-plaid-secret
+PLAID_ENV=sandbox
+```
+
+Then start the server:
+
+```bash
+npm start
+```
+
+The backend will run at `http://localhost:3001`. You should see:
+
+```
+Bambu Plaid server running on http://localhost:3001
+Plaid environment: sandbox
+```
+
+### 4. Start the frontend
+
+In a separate terminal, from the project root:
+
+```bash
 npm run dev
 ```
 
+The app will be available at `http://localhost:5173` (or the next available port).
+
+### Linking a test bank account
+
+In Plaid Sandbox, use these credentials when the Plaid Link modal opens:
+
+- **Username:** `user_good`
+- **Password:** `pass_good`
+
+Or use a custom Plaid test user for more realistic transaction data. See the [Plaid Sandbox docs](https://plaid.com/docs/sandbox/) for details.
+
 ## GitHub Pages
 
-This repo can be deployed to GitHub Pages as a static frontend. The included workflow is at [.github/workflows/deploy-pages.yml](/Users/zineb/Documents/GitHub/Bambu/.github/workflows/deploy-pages.yml).
+This repo can be deployed to GitHub Pages as a static frontend. The included workflow is at [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml).
 
 Set these repository secrets before deploying:
 
@@ -70,7 +141,7 @@ If `VITE_API_BASE_URL` is not set, the app still deploys, but Plaid bank-linking
 ## Supabase Setup
 
 1. Create or open a Supabase project.
-2. Run [supabase/schema.sql](/Users/zineb/Documents/GitHub/Bambu/supabase/schema.sql).
+2. Run [supabase/schema.sql](supabase/schema.sql).
 3. Set:
    - `VITE_SUPABASE_URL`
    - `VITE_SUPABASE_ANON_KEY`
