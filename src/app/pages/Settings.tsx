@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router";
 import {
   User,
+  DollarSign,
+  Camera,
   Check,
   LogOut,
   Languages,
@@ -15,9 +17,20 @@ import {
   Lock,
   AlertTriangle,
   Calendar,
-  Camera,
-  DollarSign,
+  Search,
+  Filter,
+  ArrowUpDown,
+  ShoppingCart,
+  ChevronDown,
+  ChevronUp,
+  TrendingDown,
+  BarChart3,
+  Loader2,
+  Landmark,
+  RefreshCw,
 } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { usePlaidLink } from "react-plaid-link";
 import Layout from "../components/Layout";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
@@ -35,6 +48,9 @@ import {
   updateUserSettings,
 } from "../lib/settings";
 import type { LinkedCard } from "../types/settings";
+import type { PlaidAccount, PlaidItem, PlaidTransaction } from "../types/plaid";
+import { formatCategoryName, getCategoryColor } from "../hooks/usePlaidData";
+import { getCategoryIcon } from "../lib/categoryIcons";
 
 const languages = SUPPORTED_LANGUAGES;
 
@@ -101,6 +117,35 @@ async function readOptimizedAvatar(file: File) {
     URL.revokeObjectURL(imageUrl);
   }
 }
+
+// --- Plaid Link Button Component ---
+
+function PlaidLinkButton({
+  linkToken,
+  onSuccess,
+  children,
+  className,
+}: {
+  linkToken: string | null;
+  onSuccess: (publicToken: string, metadata: any) => void;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const { open, ready } = usePlaidLink({
+    token: linkToken,
+    onSuccess: (public_token, metadata) => {
+      onSuccess(public_token, metadata);
+    },
+  });
+
+  return (
+    <button onClick={() => open()} disabled={!ready || !linkToken} className={className}>
+      {children}
+    </button>
+  );
+}
+
+// ===================== MAIN COMPONENT =====================
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -236,7 +281,7 @@ export default function Settings() {
     }
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (overridePhoto?: string | null) => {
     if (!user) {
       return;
     }
@@ -249,7 +294,7 @@ export default function Settings() {
         {
           firstName,
           lastName,
-          avatarUrl: profilePhoto,
+          avatarUrl: overridePhoto !== undefined ? overridePhoto : profilePhoto,
         },
         email,
       );
@@ -424,9 +469,140 @@ export default function Settings() {
     }
   };
 
-  const maskCardNumber = (cardNumber: string) => {
-    const last4 = cardNumber.slice(-4);
-    return `•••• •••• •••• ${last4}`;
+  // --- Plaid State ---
+  const [linkToken, setLinkToken] = useState<string | null>(null);
+  const [plaidItems, setPlaidItems] = useState<PlaidItem[]>(() => {
+    const saved = localStorage.getItem("plaidItems");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [transactions, setTransactions] = useState<PlaidTransaction[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [isLinking, setIsLinking] = useState(false);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  const [plaidError, setPlaidError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [sortBy, setSortBy] = useState<"date" | "amount">("date");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+
+  useEffect(() => {
+    fetch("/api/plaid/create-link-token", { method: "POST" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.link_token) setLinkToken(data.link_token);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (plaidItems.length > 0 && !selectedItemId) {
+      setSelectedItemId(plaidItems[0].item_id);
+    }
+  }, [plaidItems, selectedItemId]);
+
+  const fetchTransactions = useCallback(async (itemId: string) => {
+    setIsLoadingTransactions(true);
+    try {
+      const res = await fetch(`/api/plaid/transactions/${itemId}`);
+      const data = await res.json();
+      if (data.transactions) setTransactions(data.transactions);
+    } catch {
+      setPlaidError("Failed to fetch transactions. Make sure the backend is running.");
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedItemId) fetchTransactions(selectedItemId);
+  }, [selectedItemId, fetchTransactions]);
+
+  const handlePlaidSuccess = async (publicToken: string) => {
+    setIsLinking(true);
+    setPlaidError(null);
+    try {
+      const res = await fetch("/api/plaid/exchange-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public_token: publicToken }),
+      });
+      const data = await res.json();
+      const newItem: PlaidItem = {
+        item_id: data.item_id,
+        institution_name: data.institution_name,
+        accounts: data.accounts,
+      };
+      const updated = [...plaidItems, newItem];
+      setPlaidItems(updated);
+      localStorage.setItem("plaidItems", JSON.stringify(updated));
+      window.dispatchEvent(new Event("plaidItemsUpdated"));
+      setSelectedItemId(newItem.item_id);
+    } catch {
+      setPlaidError("Cannot connect to server. Start the backend with: cd server && node index.js");
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const handleRemoveItem = async (itemId: string) => {
+    try {
+      await fetch(`/api/plaid/item/${itemId}`, { method: "DELETE" });
+    } catch {
+      // Server might be down -- still clean up locally
+    }
+    const updated = plaidItems.filter((i) => i.item_id !== itemId);
+    setPlaidItems(updated);
+    localStorage.setItem("plaidItems", JSON.stringify(updated));
+    window.dispatchEvent(new Event("plaidItemsUpdated"));
+    if (selectedItemId === itemId) {
+      setSelectedItemId(updated.length > 0 ? updated[0].item_id : null);
+      setTransactions([]);
+    }
+  };
+
+  const maskCardNumber = (num: string) => {
+    const digits = num.replace(/\D/g, "");
+    return digits.length >= 4 ? `**** **** **** ${digits.slice(-4)}` : num;
+  };
+
+  const expenseTransactions = transactions.filter((t) => t.amount > 0);
+  const incomeTotal = transactions.filter((t) => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalSpending = expenseTransactions.reduce((s, t) => s + t.amount, 0);
+  const pendingCount = transactions.filter((t) => t.pending).length;
+
+  const pieData = Array.from(
+    expenseTransactions.reduce((map, t) => {
+      const existing = map.get(t.category);
+      if (existing) existing.value += t.amount;
+      else map.set(t.category, { rawName: t.category, name: formatCategoryName(t.category), value: t.amount, color: getCategoryColor(t.category) });
+      return map;
+    }, new Map<string, { rawName: string; name: string; value: number; color: string }>()),
+  ).map(([, v]) => ({ ...v, value: Math.round(v.value * 100) / 100 }));
+
+  const filteredTransactions = expenseTransactions
+    .filter((t) => {
+      const matchesSearch =
+        !searchQuery ||
+        (t.merchant_name || t.name).toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = categoryFilter === "all" || t.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === "date") {
+        const diff = new Date(b.date).getTime() - new Date(a.date).getTime();
+        return sortOrder === "desc" ? diff : -diff;
+      }
+      return sortOrder === "desc" ? b.amount - a.amount : a.amount - b.amount;
+    });
+
+  const expenseCategories = ["all", ...Array.from(new Set(expenseTransactions.map((t) => t.category)))];
+
+  const selectedItem = plaidItems.find((i) => i.item_id === selectedItemId);
+
+  const getCurrencySymbol = (code: string) => {
+    const map: Record<string, string> = { CAD: "C$", USD: "$", EUR: "€", GBP: "£" };
+    return map[code] || "$";
   };
 
   return (
@@ -461,12 +637,11 @@ export default function Settings() {
             <User className="size-5 text-primary" />
             <h3>{t("settingsPage.profile")}</h3>
           </div>
-
           <div className="space-y-6">
             <div className="flex items-center gap-6">
               <div className="relative">
                 <div className="w-24 h-24 rounded-full bg-accent flex items-center justify-center overflow-hidden border-4 border-border">
-                  {profilePhoto ? <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-4xl"></span>}
+                  {profilePhoto ? <img src={profilePhoto} alt="Profile" className="w-full h-full object-cover" /> : <span className="text-4xl">🐼</span>}
                 </div>
                 <label className="absolute bottom-0 right-0 bg-primary text-primary-foreground p-2 rounded-full cursor-pointer hover:opacity-90 transition-opacity shadow-lg">
                   <Camera className="size-4" />
@@ -476,6 +651,18 @@ export default function Settings() {
               <div>
                 <h4 className="mb-1">{t("settingsPage.profilePicture")}</h4>
                 <p className="text-sm text-muted-foreground">{t("settingsPage.uploadPhoto")}</p>
+                {profilePhoto && (
+                  <button
+                    onClick={async () => {
+                      setProfilePhoto(null);
+                      await handleSaveProfile(null);
+                    }}
+                    className="mt-2 text-xs text-destructive hover:underline flex items-center gap-1"
+                  >
+                    <X className="size-3" />
+                    Remove photo
+                  </button>
+                )}
               </div>
             </div>
 
@@ -489,7 +676,6 @@ export default function Settings() {
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
-
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.lastName")}</label>
               <input
@@ -625,7 +811,6 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground mt-1">{t("settingsPage.darkModeHelp")}</p>
               </div>
             </div>
-
             <label className="relative inline-flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -645,177 +830,291 @@ export default function Settings() {
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
-            <CreditCard className="size-5 text-primary" />
-            <h3>{t("settingsPage.linkedCards")}</h3>
+            <Landmark className="size-5 text-primary" />
+            <h3>Linked Bank Accounts</h3>
           </div>
 
-          <div className="space-y-4">
-            {linkedCards.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <CreditCard className="size-12 mx-auto mb-3 opacity-50" />
-                <p>{t("settingsPage.noCards")}</p>
-                <p className="text-sm mt-1">{t("settingsPage.addCardHelp")}</p>
-              </div>
-            ) : (
-              linkedCards.map((card) => (
-                <div
-                  key={card.id}
-                  className={`relative rounded-xl p-6 text-white shadow-lg overflow-hidden ${
-                    card.cardType === "credit" ? "bg-gradient-to-br from-purple-600 to-purple-800" : "bg-gradient-to-br from-blue-600 to-blue-800"
-                  }`}
-                  style={{ minHeight: "180px" }}
-                >
-                  <div className="absolute top-4 right-4 opacity-20">
-                    <CreditCard className="size-16" />
-                  </div>
-
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-8">
-                      <div className="text-sm font-medium opacity-90">{card.bankName}</div>
-                      <div className="text-xs bg-white/20 px-2 py-1 rounded">{card.cardType.toUpperCase()}</div>
-                    </div>
-
-                    <div className="font-mono text-lg mb-6 tracking-wider">{maskCardNumber(card.cardNumber)}</div>
-
-                    <div className="flex items-end justify-between">
-                      <div>
-                        <div className="text-xs opacity-70 mb-1">{t("settingsPage.cardholder")}</div>
-                        <div className="text-sm font-medium">{card.cardHolder.toUpperCase()}</div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <label className="flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-2 rounded-lg cursor-pointer hover:bg-white/20 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={card.autoImport}
-                            onChange={() => toggleAutoImport(card.id)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-10 h-5 bg-white/20 rounded-full peer-checked:bg-primary transition-colors relative">
-                            <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-4 w-4 transition-transform ${card.autoImport ? "translate-x-5" : ""}`}></div>
-                          </div>
-                          <span className="text-xs">{t("settingsPage.auto")}</span>
-                        </label>
-
-                        <button
-                          onClick={() => handleDeleteCard(card.id)}
-                          className="bg-white/10 backdrop-blur px-3 py-2 rounded-lg hover:bg-red-500/80 transition-colors"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-
-            <button
-              onClick={() => setShowAddCardModal(true)}
-              className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              <Plus className="size-5" />
-              {t("settingsPage.linkNewCard")}
-            </button>
-
-            <p className="text-xs text-muted-foreground text-center mt-2">
-              {t("settingsPage.linkNewCardHelp")}
-            </p>
-          </div>
-        </div>
-
-        {showAddCardModal ? (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div className="bg-card border border-border rounded-xl p-6 w-96">
-              <div className="flex items-center justify-between">
-                <h3>{t("settingsPage.addCard")}</h3>
-                <button
-                  onClick={() => setShowAddCardModal(false)}
-                  className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-                >
-                  <X className="size-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4 mt-4">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardNumber")}</label>
-                  <input
-                    type="text"
-                    value={newCard.cardNumber}
-                    onChange={(e) => setNewCard({ ...newCard, cardNumber: e.target.value })}
-                    placeholder={t("settingsPage.cardNumberPlaceholder")}
-                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardHolder")}</label>
-                  <input
-                    type="text"
-                    value={newCard.cardHolder}
-                    onChange={(e) => setNewCard({ ...newCard, cardHolder: e.target.value })}
-                    placeholder={t("settingsPage.cardHolderPlaceholder")}
-                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.cardType")}</label>
-                  <select
-                    value={newCard.cardType}
-                    onChange={(e) => setNewCard({ ...newCard, cardType: e.target.value as "credit" | "debit" })}
-                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="credit">{t("settingsPage.credit")}</option>
-                    <option value="debit">{t("settingsPage.debit")}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.bankName")}</label>
-                  <input
-                    type="text"
-                    value={newCard.bankName}
-                    onChange={(e) => setNewCard({ ...newCard, bankName: e.target.value })}
-                    placeholder={t("settingsPage.bankNamePlaceholder")}
-                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.autoImport")}</label>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={newCard.autoImport}
-                      onChange={(e) => setNewCard({ ...newCard, autoImport: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-14 h-7 bg-muted rounded-full peer peer-checked:bg-primary peer-focus:ring-4 peer-focus:ring-primary/20 transition-colors relative">
-                      <div className={`absolute top-0.5 left-0.5 bg-white rounded-full h-6 w-6 transition-transform ${newCard.autoImport ? "translate-x-7" : ""}`}></div>
-                    </div>
-                  </label>
-                </div>
-
-                <button
-                  onClick={handleAddCard}
-                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                >
-                  <Check className="size-5" />
-                  {t("settingsPage.addCard")}
-                </button>
-              </div>
+          {plaidError && (
+            <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
+              {plaidError}
             </div>
-          </div>
-        ) : null}
+          )}
+
+          {plaidItems.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <Landmark className="size-14 mx-auto mb-4 opacity-40" />
+              <h4 className="text-lg mb-1 text-foreground">No Accounts Linked Yet</h4>
+              <p className="text-sm max-w-sm mx-auto">
+                Connect your bank account securely through Plaid to automatically import all your transactions.
+              </p>
+              <PlaidLinkButton
+                linkToken={linkToken}
+                onSuccess={handlePlaidSuccess}
+                className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {isLinking ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                {isLinking ? "Linking..." : "Link Your Bank Account"}
+              </PlaidLinkButton>
+              {!linkToken && (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Make sure the backend server is running: <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">cd server && node index.js</code>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Account Selector */}
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {plaidItems.map((item) => {
+                  const isSelected = item.item_id === selectedItemId;
+                  const accountType = item.accounts[0]?.type || "depository";
+
+                  return (
+                    <button
+                      key={item.item_id}
+                      onClick={() => setSelectedItemId(item.item_id)}
+                      className={`relative flex-shrink-0 w-[280px] rounded-xl p-4 text-white shadow-lg overflow-hidden text-left transition-all duration-200 ${
+                        accountType === "credit"
+                          ? "bg-gradient-to-br from-purple-600 to-purple-900"
+                          : "bg-gradient-to-br from-blue-600 to-blue-900"
+                      } ${isSelected ? "ring-3 ring-primary/60 scale-[1.02]" : "opacity-75 hover:opacity-90"}`}
+                    >
+                      <div className="absolute top-3 right-3 opacity-10">
+                        <CreditCard className="size-14" />
+                      </div>
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-medium opacity-80">{item.institution_name}</span>
+                          <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full uppercase">
+                            {accountType}
+                          </span>
+                        </div>
+                        {item.accounts.map((acc) => (
+                          <div key={acc.account_id} className="mb-2">
+                            <div className="font-mono text-sm tracking-wider">
+                              •••• •••• •••• {acc.mask || "••••"}
+                            </div>
+                            <div className="text-xs opacity-70 mt-1">{acc.name}</div>
+                            {acc.balances.current != null && (
+                              <div className="text-sm font-semibold mt-1">
+                                {getCurrencySymbol(acc.balances.iso_currency_code || "USD")}
+                                {Math.abs(acc.balances.current).toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {isSelected && (
+                        <div className="absolute top-1.5 left-1.5 bg-white text-primary rounded-full p-0.5">
+                          <Check className="size-2.5" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+
+                <PlaidLinkButton
+                  linkToken={linkToken}
+                  onSuccess={handlePlaidSuccess}
+                  className="flex-shrink-0 w-[120px] rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                >
+                  <Plus className="size-6" />
+                  <span className="text-xs">Add</span>
+                </PlaidLinkButton>
+              </div>
+
+              {selectedItem && (
+                <>
+                  {isLoadingTransactions ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="size-8 mx-auto mb-3 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">Loading transactions...</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Stats Row */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-muted/50 rounded-lg p-3 text-center">
+                          <DollarSign className="size-4 text-primary mx-auto mb-1" />
+                          <div className="text-lg font-semibold">${totalSpending.toFixed(2)}</div>
+                          <div className="text-[10px] text-muted-foreground">Total Spent</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-3 text-center">
+                          <TrendingDown className="size-4 text-primary mx-auto mb-1" />
+                          <div className="text-lg font-semibold">{expenseTransactions.length}</div>
+                          <div className="text-[10px] text-muted-foreground">Transactions</div>
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-3 text-center">
+                          <Calendar className="size-4 text-yellow-600 dark:text-yellow-400 mx-auto mb-1" />
+                          <div className="text-lg font-semibold">{pendingCount}</div>
+                          <div className="text-[10px] text-muted-foreground">Pending</div>
+                        </div>
+                      </div>
+
+                      {incomeTotal > 0 && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Income received</span>
+                          <span className="text-sm font-semibold text-primary">+${incomeTotal.toFixed(2)}</span>
+                        </div>
+                      )}
+
+                      {/* Spending Breakdown */}
+                      {pieData.length > 0 && (
+                        <div className="bg-muted/30 rounded-xl p-4">
+                          <h4 className="text-sm font-medium flex items-center gap-2 mb-3">
+                            <BarChart3 className="size-4 text-primary" />
+                            Spending Breakdown
+                          </h4>
+                          <div className="flex items-start gap-4">
+                            <div className="flex-shrink-0" suppressHydrationWarning>
+                              <ResponsiveContainer width={140} height={140}>
+                                <PieChart>
+                                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3} dataKey="value">
+                                    {pieData.map((entry, i) => <Cell key={`pie-${i}`} fill={entry.color} />)}
+                                  </Pie>
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <div className="flex-1 space-y-1.5 pt-1">
+                              {pieData.map((item) => (
+                                <div key={item.rawName} className="flex items-center justify-between text-sm">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                                    <span className="text-muted-foreground text-xs">{item.name}</span>
+                                  </div>
+                                  <span className="text-xs font-medium">${item.value.toFixed(2)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Search & Filters */}
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                            <input
+                              type="text"
+                              placeholder="Search transactions..."
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="w-full pl-10 pr-4 py-2.5 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                            />
+                          </div>
+                          <button
+                            onClick={() => fetchTransactions(selectedItemId!)}
+                            className="px-3 py-2 bg-muted text-muted-foreground rounded-lg hover:bg-secondary transition-colors"
+                            title="Refresh transactions"
+                          >
+                            <RefreshCw className={`size-4 ${isLoadingTransactions ? "animate-spin" : ""}`} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-muted text-muted-foreground rounded-lg hover:bg-secondary text-xs transition-colors"
+                          >
+                            <Filter className="size-3" />
+                            Filters
+                            {showFilters ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                          </button>
+                          <button
+                            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-muted text-muted-foreground rounded-lg hover:bg-secondary text-xs transition-colors"
+                          >
+                            <ArrowUpDown className="size-3" />
+                            {sortBy === "date" ? "Date" : "Amount"} {sortOrder === "desc" ? "↓" : "↑"}
+                          </button>
+                          <button onClick={() => setSortBy(sortBy === "date" ? "amount" : "date")} className="text-xs text-primary hover:underline">
+                            Sort by {sortBy === "date" ? "amount" : "date"}
+                          </button>
+                        </div>
+                        {showFilters && (
+                          <div className="flex gap-1.5 flex-wrap">
+                            {expenseCategories.map((cat) => (
+                              <button
+                                key={cat}
+                                onClick={() => setCategoryFilter(cat)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] transition-colors ${
+                                  categoryFilter === cat ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-secondary"
+                                }`}
+                              >
+                                {cat === "all" ? "All" : formatCategoryName(cat)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Transaction Items */}
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                        {filteredTransactions.length === 0 ? (
+                          <div className="text-center py-6 text-muted-foreground">
+                            <Search className="size-6 mx-auto mb-2 opacity-40" />
+                            <p className="text-sm">No transactions found</p>
+                          </div>
+                        ) : (
+                          filteredTransactions.map((t) => (
+                            <div key={t.transaction_id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-9 h-9 rounded-full flex items-center justify-center"
+                                  style={{
+                                    backgroundColor: getCategoryColor(t.category) + "20",
+                                    color: getCategoryColor(t.category),
+                                  }}
+                                >
+                                  {getCategoryIcon(t.category)}
+                                </div>
+                                <div>
+                                  <div className="text-sm font-medium">{t.merchant_name || t.name}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatCategoryName(t.category)} &middot; {t.date}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {t.pending && (
+                                  <span className="text-[10px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded-full">Pending</span>
+                                )}
+                                <span className="text-sm font-medium">
+                                  -{getCurrencySymbol(t.iso_currency_code)}{t.amount.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      {filteredTransactions.length > 0 && (
+                        <div className="pt-3 border-t border-border flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {filteredTransactions.length} of {expenseTransactions.length} transactions
+                          </span>
+                          <button
+                            onClick={() => handleRemoveItem(selectedItem.item_id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-destructive/10 text-destructive rounded-lg hover:bg-destructive/20 transition-colors"
+                          >
+                            <Trash2 className="size-3" />
+                            Unlink Account
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="bg-card border border-border rounded-xl p-6">
           <div className="flex items-center gap-2 mb-4">
             <Bell className="size-5 text-primary" />
             <h3>{t("settingsPage.notifications")}</h3>
           </div>
-
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -908,7 +1207,6 @@ export default function Settings() {
             <Lock className="size-5 text-primary" />
             <h3>{t("settingsPage.security")}</h3>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.currentPassword")}</label>
@@ -920,27 +1218,13 @@ export default function Settings() {
                 className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
-
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.newPassword")}</label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder={t("settingsPage.newPasswordPlaceholder")}
-                className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+              <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder={t("settingsPage.newPasswordPlaceholder")} className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
             </div>
-
             <div>
               <label className="text-sm text-muted-foreground mb-2 block">{t("settingsPage.confirmPassword")}</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder={t("settingsPage.confirmPasswordPlaceholder")}
-                className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder={t("settingsPage.confirmPasswordPlaceholder")} className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
             </div>
 
             <button
@@ -958,7 +1242,6 @@ export default function Settings() {
             <AlertTriangle className="size-5 text-primary" />
             <h3>{t("settingsPage.deleteAccount")}</h3>
           </div>
-
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               {t("settingsPage.deleteAccountHelp")}
@@ -971,20 +1254,15 @@ export default function Settings() {
               <Trash2 className="size-5" />
               {t("settingsPage.deleteAccount")}
             </button>
-
             {showDeleteConfirm ? (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                 <div className="bg-card border border-border rounded-xl p-6 w-96">
                   <div className="flex items-center justify-between">
                     <h3>{t("settingsPage.confirmDeletion")}</h3>
-                    <button
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
-                    >
+                    <button onClick={() => setShowDeleteConfirm(false)} className="bg-destructive text-destructive-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity">
                       <X className="size-4" />
                     </button>
                   </div>
-
                   <div className="space-y-4 mt-4">
                     <p className="text-sm text-muted-foreground">
                       {t("settingsPage.selfServeDelete")}
@@ -1016,3 +1294,4 @@ export default function Settings() {
     </Layout>
   );
 }
+

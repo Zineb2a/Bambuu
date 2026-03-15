@@ -61,6 +61,7 @@ import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal, Subscription } from "../types/finance";
 import type { Transaction } from "../types/transactions";
+import { usePlaidData, plaidToTransaction } from "../hooks/usePlaidData";
 
 const CHART_COLORS = ["#2d6a4f", "#52b788", "#74c69d", "#95d5b2", "#b7e4c7", "#40916c"];
 
@@ -79,6 +80,18 @@ export default function Analytics() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const { allTransactions: plaidRawTxns } = usePlaidData();
+
+  const allTransactions = useMemo(() => {
+    if (!user || plaidRawTxns.length === 0) return transactions;
+    const plaidConverted = plaidRawTxns.map((t) => plaidToTransaction(t, user.id));
+    const plaidIds = new Set(plaidConverted.map((t) => t.id));
+    const supabaseOnly = transactions.filter((t) => !plaidIds.has(t.id));
+    return [...plaidConverted, ...supabaseOnly].sort(
+      (a, b) => new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime(),
+    );
+  }, [transactions, plaidRawTxns, user]);
 
   useEffect(() => {
     if (!user) {
@@ -145,17 +158,17 @@ export default function Analytics() {
   const now = new Date();
   const firstTransactionDate = useMemo(
     () =>
-      transactions.length > 0
-        ? transactions
+      allTransactions.length > 0
+        ? allTransactions
             .map((transaction) => parseTransactionDate(transaction.occurredOn))
             .sort((a, b) => a.getTime() - b.getTime())[0]
         : now,
-    [now, transactions],
+    [now, allTransactions],
   );
 
   const selectedInterval = useMemo(() => {
     if (overviewPeriod === "week") {
-      return { start: startOfWeek(now), end: endOfWeek(now) };
+      return { start: subDays(now, 6), end: now };
     }
     if (overviewPeriod === "year") {
       return { start: startOfYear(now), end: endOfYear(now) };
@@ -165,7 +178,7 @@ export default function Analytics() {
 
   const distributionInterval = useMemo(() => {
     if (distributionPeriod === "week") {
-      return { start: startOfWeek(now), end: endOfWeek(now) };
+      return { start: subDays(now, 6), end: now };
     }
     if (distributionPeriod === "year") {
       return { start: startOfYear(now), end: endOfYear(now) };
@@ -173,24 +186,34 @@ export default function Analytics() {
     return { start: startOfMonth(now), end: endOfMonth(now) };
   }, [distributionPeriod, now]);
 
+  const periodTransactions = useMemo(
+    () =>
+      allTransactions.filter((transaction) =>
+        isWithinInterval(parseTransactionDate(transaction.occurredOn), selectedInterval),
+      ),
+    [selectedInterval, allTransactions],
+  );
+
+  const expenseTransactions = periodTransactions.filter((transaction) => transaction.type === "expense");
+  const incomeTransactions = periodTransactions.filter((transaction) => transaction.type === "income");
   const distributionTransactions = useMemo(
     () =>
-      transactions.filter(
+      allTransactions.filter(
         (transaction) =>
           transaction.type === "expense" &&
           isWithinInterval(parseTransactionDate(transaction.occurredOn), distributionInterval),
       ),
-    [distributionInterval, transactions],
+    [distributionInterval, allTransactions],
   );
 
-  const totalIncome = transactions
+  const totalIncome = allTransactions
     .filter((transaction) => transaction.type === "income")
     .reduce(
       (sum, transaction) =>
         sum + getTransactionAmountInInterval(transaction, currency, selectedInterval.start, selectedInterval.end),
       0,
     );
-  const totalExpenses = transactions
+  const totalExpenses = allTransactions
     .filter((transaction) => transaction.type === "expense")
     .reduce(
       (sum, transaction) =>
@@ -234,10 +257,10 @@ export default function Analytics() {
     }).map((month) => {
       const monthStart = startOfMonth(month);
       const monthEnd = endOfMonth(month);
-      const income = transactions
+      const income = allTransactions
         .filter((transaction) => transaction.type === "income")
         .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, monthStart, monthEnd), 0);
-      const expenses = transactions
+      const expenses = allTransactions
         .filter((transaction) => transaction.type === "expense")
         .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, monthStart, monthEnd), 0);
 
@@ -248,7 +271,7 @@ export default function Analytics() {
         savings: income - expenses,
       };
     });
-  }, [currency, firstTransactionDate, now, transactions, trendPeriod]);
+  }, [currency, firstTransactionDate, now, allTransactions, trendPeriod]);
 
   const previousMonthData = monthlyComparison[monthlyComparison.length - 2];
   const currentMonthData = monthlyComparison[monthlyComparison.length - 1];
@@ -263,7 +286,7 @@ export default function Analytics() {
       start: startOfDay(subDays(now, dayCount)),
       end: endOfDay(now),
     }).map((day) => {
-      const amount = transactions
+      const amount = allTransactions
         .filter((transaction) => transaction.type === "expense")
         .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0);
 
@@ -272,7 +295,7 @@ export default function Analytics() {
         amount,
       };
     });
-  }, [currency, now, spendingPeriod, transactions]);
+  }, [currency, now, spendingPeriod, allTransactions]);
 
   const avgDailySpending = (
     dailySpending.reduce((sum, item) => sum + item.amount, 0) / (dailySpending.length || 1)
@@ -293,7 +316,7 @@ export default function Analytics() {
       start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
-      const actual = transactions
+      const actual = allTransactions
         .filter((transaction) => transaction.type === "expense")
         .reduce(
           (sum, transaction) =>
@@ -312,15 +335,25 @@ export default function Analytics() {
         actual,
       };
     });
-  }, [budgetCategories, budgetPeriod, currency, firstTransactionDate, now, transactions]);
+  }, [budgetCategories, budgetPeriod, currency, firstTransactionDate, now, allTransactions]);
 
   const overBudgetMonth = budgetComparison
     .slice()
     .reverse()
     .find((month) => month.actual > month.budget);
 
+  const topSpendingCategories = useMemo(() => {
+    const totals: Record<string, number> = {};
+    allTransactions
+      .filter((t) => t.type === "expense")
+      .forEach((t) => { totals[t.category] = (totals[t.category] ?? 0) + 1; });
+    return Object.entries(totals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([name]) => name);
+  }, [allTransactions]);
+
   const categoryTrends = useMemo(() => {
-    const trackedCategories = budgetCategories.slice(0, 4);
     const startMonth = startOfMonth(
       subMonths(now, categoryTrendPeriod === "12m" ? 11 : categoryTrendPeriod === "6m" ? 5 : 2),
     );
@@ -331,12 +364,12 @@ export default function Analytics() {
     }).map((month) => {
       const row: Record<string, string | number> = { month: format(month, "MMM") };
 
-      trackedCategories.forEach((category) => {
-        row[category.name.toLowerCase()] = transactions
+      topSpendingCategories.forEach((categoryName) => {
+        row[categoryName.toLowerCase()] = allTransactions
           .filter(
             (transaction) =>
               transaction.type === "expense" &&
-              transaction.category.toLowerCase() === category.name.toLowerCase(),
+              transaction.category.toLowerCase() === categoryName.toLowerCase(),
           )
           .reduce(
             (sum, transaction) =>
@@ -347,7 +380,7 @@ export default function Analytics() {
 
       return row;
     });
-  }, [budgetCategories, categoryTrendPeriod, currency, now, transactions]);
+  }, [topSpendingCategories, categoryTrendPeriod, currency, now, allTransactions]);
 
   const recommendations = useMemo(() => {
     const items: Array<{ title: string; message: string }> = [];
@@ -404,7 +437,7 @@ export default function Analytics() {
     return items.slice(0, 3);
   }, [categoryData, currency, goals, overBudgetMonth, subscriptions, t]);
 
-  const trackedTrendCategories = budgetCategories.slice(0, 4);
+  const trackedTrendCategories = topSpendingCategories;
 
   return (
     <Layout>
@@ -774,11 +807,11 @@ export default function Analytics() {
                         borderRadius: "8px",
                       }}
                     />
-                    {trackedTrendCategories.map((category, index) => (
+                    {trackedTrendCategories.map((categoryName, index) => (
                       <Line
-                        key={category.id}
+                        key={categoryName}
                         type="monotone"
-                        dataKey={category.name.toLowerCase()}
+                        dataKey={categoryName.toLowerCase()}
                         stroke={CHART_COLORS[index % CHART_COLORS.length]}
                         strokeWidth={2}
                       />
@@ -786,10 +819,10 @@ export default function Analytics() {
                   </LineChart>
                 </ResponsiveContainer>
                 <div className="grid grid-cols-2 gap-2 mt-4">
-                  {trackedTrendCategories.map((category, index) => (
-                    <div key={category.id} className="flex items-center gap-2">
+                  {trackedTrendCategories.map((categoryName, index) => (
+                    <div key={categoryName} className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
-                      <span className="text-sm text-muted-foreground">{localizeCategory(category.name)}</span>
+                      <span className="text-sm text-muted-foreground">{localizeCategory(categoryName)}</span>
                     </div>
                   ))}
                 </div>
@@ -801,3 +834,4 @@ export default function Analytics() {
     </Layout>
   );
 }
+

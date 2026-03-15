@@ -591,16 +591,16 @@ export async function ensureStarterFinancialSetup(userId: string, currency = "US
 
   if (existingCategories.length === 0) {
     const starterCategories: BudgetCategoryInput[] = [
-      { name: "Food & Groceries", budget: 250, currency, originalBudget: 250, icon: "utensils", color: "#74c69d" },
-      { name: "Transport", budget: 90, currency, originalBudget: 90, icon: "bus", color: "#95d5b2" },
-      { name: "Rent & Housing", budget: 700, currency, originalBudget: 700, icon: "home", color: "#b7e4c7" },
-      { name: "Utilities", budget: 120, currency, originalBudget: 120, icon: "smartphone", color: "#d8f3dc" },
-      { name: "School / Books", budget: 100, currency, originalBudget: 100, icon: "book", color: "#cad2c5" },
-      { name: "Entertainment", budget: 80, currency, originalBudget: 80, icon: "film", color: "#52b788" },
-      { name: "Shopping", budget: 120, currency, originalBudget: 120, icon: "shopping", color: "#40916c" },
-      { name: "Health", budget: 75, currency, originalBudget: 75, icon: "heart", color: "#84a98c" },
-      { name: "Subscriptions", budget: 45, currency, originalBudget: 45, icon: "music", color: "#2d6a4f" },
-      { name: "Other", budget: 60, currency, originalBudget: 60, icon: "shopping", color: "#52796f" },
+      { name: "Food & Groceries", budget: 400, currency, originalBudget: 400, icon: "utensils", color: "#74c69d" },
+      { name: "Transport", budget: 150, currency, originalBudget: 150, icon: "bus", color: "#95d5b2" },
+      { name: "Rent & Housing", budget: 1200, currency, originalBudget: 1200, icon: "home", color: "#b7e4c7" },
+      { name: "Utilities", budget: 200, currency, originalBudget: 200, icon: "smartphone", color: "#d8f3dc" },
+      { name: "School / Books", budget: 150, currency, originalBudget: 150, icon: "book", color: "#cad2c5" },
+      { name: "Entertainment", budget: 150, currency, originalBudget: 150, icon: "film", color: "#52b788" },
+      { name: "Shopping", budget: 200, currency, originalBudget: 200, icon: "shopping", color: "#40916c" },
+      { name: "Health", budget: 100, currency, originalBudget: 100, icon: "heart", color: "#84a98c" },
+      { name: "Subscriptions", budget: 60, currency, originalBudget: 60, icon: "music", color: "#2d6a4f" },
+      { name: "Other", budget: 100, currency, originalBudget: 100, icon: "shopping", color: "#52796f" },
     ];
 
     await Promise.all(starterCategories.map((category) => createBudgetCategory(userId, category)));

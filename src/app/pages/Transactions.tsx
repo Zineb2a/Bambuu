@@ -4,10 +4,6 @@ import {
   Filter,
   Search,
   ShoppingCart,
-  Utensils,
-  Bus,
-  Film,
-  Book,
   TrendingUp,
   TrendingDown,
   Calendar,
@@ -42,12 +38,33 @@ interface TransactionListItem {
   occurredOn: string;
   transaction: Transaction;
 }
+import { getCategoryIcon } from "../lib/categoryIcons";
+import { usePlaidData, plaidToTransaction } from "../hooks/usePlaidData";
+
+const PLAID_OVERRIDES_KEY = "bambu_plaid_tx_overrides";
+const PLAID_HIDDEN_KEY = "bambu_plaid_tx_hidden";
+
+function getPlaidOverrides(): Record<string, { name?: string; category?: string; amount?: number }> {
+  try { return JSON.parse(localStorage.getItem(PLAID_OVERRIDES_KEY) ?? "{}"); } catch { return {}; }
+}
+function savePlaidOverride(id: string, overrides: { name?: string; category?: string; amount?: number }) {
+  const existing = getPlaidOverrides();
+  localStorage.setItem(PLAID_OVERRIDES_KEY, JSON.stringify({ ...existing, [id]: overrides }));
+}
+function getPlaidHidden(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(PLAID_HIDDEN_KEY) ?? "[]") as string[]); } catch { return new Set(); }
+}
+function addPlaidHidden(id: string) {
+  const hidden = getPlaidHidden();
+  hidden.add(id);
+  localStorage.setItem(PLAID_HIDDEN_KEY, JSON.stringify([...hidden]));
+}
 
 export default function Transactions() {
   const { user } = useAuth();
   const { t, localizeCategory, localizeFrequency, language } = useI18n();
   const currency = useUserCurrency();
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
+  const [supabaseTxns, setAllTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState<
@@ -65,6 +82,34 @@ export default function Transactions() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [sortOption, setSortOption] = useState<string>("date_desc");
+
+  const { allTransactions: plaidRawTxns } = usePlaidData();
+  const [plaidOverridesVersion, setPlaidOverridesVersion] = useState(0);
+
+  const allTransactions = useMemo(() => {
+    if (!user || plaidRawTxns.length === 0) return supabaseTxns;
+    const overrides = getPlaidOverrides();
+    const hidden = getPlaidHidden();
+    const plaidConverted = plaidRawTxns
+      .map((t) => plaidToTransaction(t, user.id))
+      .filter((t) => !hidden.has(t.id))
+      .map((t) => {
+        const override = overrides[t.id];
+        if (!override) return t;
+        return {
+          ...t,
+          ...(override.name !== undefined && { name: override.name }),
+          ...(override.category !== undefined && { category: override.category }),
+          ...(override.amount !== undefined && { amount: override.amount, originalAmount: override.amount }),
+        };
+      });
+    const plaidIds = new Set(plaidConverted.map((t) => t.id));
+    const supabaseOnly = supabaseTxns.filter((t) => !plaidIds.has(t.id));
+    return [...plaidConverted, ...supabaseOnly].sort(
+      (a, b) => new Date(b.occurredOn).getTime() - new Date(a.occurredOn).getTime(),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabaseTxns, plaidRawTxns, user, plaidOverridesVersion]);
 
   const categories = [
     "Food",
@@ -204,25 +249,6 @@ export default function Transactions() {
       );
     };
   }, [user]);
-
-  const getCategoryIcon = (category: string, type: string) => {
-    if (type === "income") {
-      return <TrendingUp className="size-4" />;
-    }
-
-    switch (category.toLowerCase()) {
-      case "food":
-        return <Utensils className="size-4" />;
-      case "books":
-        return <Book className="size-4" />;
-      case "transport":
-        return <Bus className="size-4" />;
-      case "entertainment":
-        return <Film className="size-4" />;
-      default:
-        return <ShoppingCart className="size-4" />;
-    }
-  };
 
   const transactionItems = useMemo(() => {
     const today = new Date();
@@ -490,6 +516,22 @@ export default function Transactions() {
       return;
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7644/ingest/736cd269-5120-42ad-bdbd-54fcf1e8f8bf',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'6ac9b5'},body:JSON.stringify({sessionId:'6ac9b5',location:'Transactions.tsx:saveEdit',message:'saveEdit called',data:{id,isPlaid:id.startsWith('plaid_'),editName,editCategory},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
+    if (id.startsWith("plaid_")) {
+      const parsedAmount = editAmount !== "" ? parseFloat(editAmount) : undefined;
+      savePlaidOverride(id, {
+        name: editName || undefined,
+        category: editCategory || undefined,
+        amount: parsedAmount && !isNaN(parsedAmount) ? parsedAmount : undefined,
+      });
+      setPlaidOverridesVersion((v) => v + 1);
+      cancelEdit();
+      return;
+    }
+
     const updated = await updateTransaction(user.id, id, {
       name: editName,
       amount:
@@ -509,7 +551,7 @@ export default function Transactions() {
     });
 
     setAllTransactions(
-      allTransactions.map((transaction) =>
+      supabaseTxns.map((transaction) =>
         transaction.id === id ? updated : transaction
       )
     );
@@ -522,9 +564,16 @@ export default function Transactions() {
       return;
     }
 
+    if (id.startsWith("plaid_")) {
+      addPlaidHidden(id);
+      setPlaidOverridesVersion((v) => v + 1);
+      setDeleteConfirmId(null);
+      return;
+    }
+
     await removeTransaction(user.id, id);
     setAllTransactions(
-      allTransactions.filter((transaction) => transaction.id !== id)
+      supabaseTxns.filter((transaction) => transaction.id !== id)
     );
     setDeleteConfirmId(null);
     window.dispatchEvent(new Event("transactionsChanged"));
@@ -595,177 +644,141 @@ export default function Transactions() {
             </Link>
           </div>
           <div className="flex justify-end flex-1">
-            <div className="relative">
-              <button
-                onClick={() => setShowFilters((v) => !v)}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-accent transition-colors"
-                aria-expanded={showFilters}
-                aria-controls="filters-panel"
-                type="button"
-              >
-                <Filter className="size-4" />
-                {t("transactions.filters")}
-                <ChevronDown
-                  className={`size-4 transition-transform ${
-                    showFilters ? "rotate-180" : ""
-                  }`}
-                />
-                {hasActiveFilters ? (
-                  <span className="ml-2 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
-                    {t("transactions.active")}
-                  </span>
-                ) : null}
-              </button>
-              {showFilters && (
-                <div
-                  id="filters-panel"
-                  className="absolute right-0 mt-2 w-[min(95vw,600px)] bg-card border border-border rounded-xl shadow-lg z-20 p-4"
-                >
-                  <div className="flex flex-col md:flex-row md:items-end md:gap-4 gap-3">
-                    {/* Category */}
-                    <div className="flex-1 min-w-[120px]">
-                      <label className="text-xs text-muted-foreground mb-1 block">
-                        {t("transactions.category")}
-                      </label>
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="w-full px-2 py-1.5 bg-input-background rounded-md border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-xs"
-                      >
-                        <option value="all">
-                          {t("transactions.allCategories")}
-                        </option>
-                        {categories.map((category) => (
-                          <option key={category} value={category}>
-                            {localizeCategory(
-                              language,
-                              category.charAt(0).toUpperCase() +
-                                category.slice(1).toLowerCase()
-                            ) || category}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* Date Range & Select Date (merged, compact) */}
-                    <div className="flex-1 min-w-[180px]">
-                      <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                        <Calendar className="size-3" />
-                        {t("transactions.dateRange")}
-                      </label>
-                      <div className="flex flex-wrap items-center gap-1">
-                        <button
-                          onClick={() => {
-                            setSelectedDateRange("all");
-                            setSelectedDate(undefined);
-                          }}
-                          className={`px-2 py-1 rounded text-xs transition-all ${
-                            selectedDateRange === "all" && !selectedDate
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-secondary"
-                          }`}
-                        >
-                          {t("transactions.allTime")}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedDateRange("week");
-                            setSelectedDate(undefined);
-                          }}
-                          className={`px-2 py-1 rounded text-xs transition-all ${
-                            selectedDateRange === "week" && !selectedDate
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-secondary"
-                          }`}
-                        >
-                          {t("transactions.lastWeek")}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedDateRange("month");
-                            setSelectedDate(undefined);
-                          }}
-                          className={`px-2 py-1 rounded text-xs transition-all ${
-                            selectedDateRange === "month" && !selectedDate
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-secondary"
-                          }`}
-                        >
-                          {t("transactions.lastMonth")}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSelectedDateRange("quarter");
-                            setSelectedDate(undefined);
-                          }}
-                          className={`px-2 py-1 rounded text-xs transition-all ${
-                            selectedDateRange === "quarter" && !selectedDate
-                              ? "bg-primary text-primary-foreground"
-                              : "bg-muted text-muted-foreground hover:bg-secondary"
-                          }`}
-                        >
-                          {t("transactions.lastQuarter")}
-                        </button>
-                        <div className="flex items-center gap-1 ml-1">
-                          <div className="scale-90">
-                            <DateFilter
-                              selectedDate={selectedDate}
-                              onSelectDate={(date) => {
-                                setSelectedDate(date);
-                                setSelectedDateRange("all");
-                              }}
-                            />
-                          </div>
-                          {selectedDate && (
-                            <button
-                              onClick={() => setSelectedDate(undefined)}
-                              className="px-1 py-0.5 text-xs rounded bg-muted text-muted-foreground hover:bg-secondary"
-                            >
-                              {t("transactions.clearAllFilters")}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {/* Amount Range */}
-                    <div className="flex-1 min-w-[140px]">
-                      <label className="text-xs text-muted-foreground mb-1 flex items-center gap-1">
-                        <DollarSign className="size-3" />
-                        {t("transactions.amountRange")}
-                      </label>
-                      <div className="flex gap-1">
-                        <input
-                          type="number"
-                          placeholder={t("transactions.minAmount")}
-                          value={minAmount}
-                          onChange={(e) => setMinAmount(e.target.value)}
-                          className="w-1/2 px-2 py-1.5 bg-input-background rounded-md border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-xs"
-                        />
-                        <input
-                          type="number"
-                          placeholder={t("transactions.maxAmount")}
-                          value={maxAmount}
-                          onChange={(e) => setMaxAmount(e.target.value)}
-                          className="w-1/2 px-2 py-1.5 bg-input-background rounded-md border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-xs"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  {hasActiveFilters ? (
-                    <div className="pt-2 border-t border-border mt-2">
-                      <button
-                        onClick={clearFilters}
-                        className="w-full py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded-lg transition-colors flex items-center justify-center gap-2 mt-2"
-                      >
-                        <X className="size-4" />
-                        {t("transactions.clearAllFilters")}
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
+            <button
+              onClick={() => setShowFilters((v) => !v)}
+              className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-accent transition-colors"
+              aria-expanded={showFilters}
+              type="button"
+            >
+              <Filter className="size-4" />
+              {t("transactions.filters")}
+              <ChevronDown
+                className={`size-4 transition-transform ${showFilters ? "rotate-180" : ""}`}
+              />
+              {hasActiveFilters && (
+                <span className="ml-1 px-2 py-0.5 bg-primary text-primary-foreground text-xs rounded-full">
+                  {t("transactions.active")}
+                </span>
               )}
-            </div>
+            </button>
           </div>
         </div>
+
+        {showFilters && (
+          <div
+            id="filters-panel"
+            className="bg-card border border-border rounded-xl shadow-sm mb-6 p-5"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+              {/* ── Category ── */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium mb-3">
+                  {t("transactions.category")}
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                >
+                  <option value="all">{t("transactions.allCategories")}</option>
+                  {Array.from(new Set(allTransactions.map((t) => t.category)))
+                    .sort()
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {localizeCategory(cat) || cat}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              {/* ── Date Range ── */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium mb-3">
+                  <Calendar className="size-4" />
+                  {t("transactions.dateRange")}
+                </label>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { value: "all", label: t("transactions.allTime") },
+                    { value: "week", label: t("transactions.lastWeek") },
+                    { value: "month", label: t("transactions.lastMonth") },
+                    { value: "quarter", label: t("transactions.lastQuarter") },
+                  ].map(({ value, label }) => (
+                    <button
+                      key={value}
+                      onClick={() => { setSelectedDateRange(value); setSelectedDate(undefined); }}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                        selectedDateRange === value && !selectedDate
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground hover:bg-secondary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <DateFilter
+                  selectedDate={selectedDate}
+                  onSelectDate={(date) => {
+                    setSelectedDate(date);
+                    setSelectedDateRange("all");
+                  }}
+                />
+                {selectedDate && (
+                  <button
+                    onClick={() => setSelectedDate(undefined)}
+                    className="mt-2 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    <X className="size-3" /> Clear date
+                  </button>
+                )}
+              </div>
+
+              {/* ── Amount Range ── */}
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium mb-3">
+                  <DollarSign className="size-4" />
+                  {t("transactions.amountRange")}
+                </label>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">Min</label>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-muted-foreground mb-1 block">Max</label>
+                    <input
+                      type="number"
+                      placeholder="∞"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {hasActiveFilters && (
+              <div className="mt-5 pt-4 border-t border-border flex justify-end">
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-2 px-4 py-2 text-sm text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-lg transition-colors"
+                >
+                  <X className="size-4" />
+                  {t("transactions.clearAllFilters")}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-card border border-border rounded-xl p-4">

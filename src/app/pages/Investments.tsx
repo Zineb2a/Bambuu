@@ -35,6 +35,7 @@ import {
   removeInvestment,
 } from "../lib/investments";
 import type { InvestmentPosition } from "../types/investments";
+import { usePlaidData } from "../hooks/usePlaidData";
 
 type InvestmentType = "stock" | "crypto" | "etf" | "bond";
 type SuggestionTone = "info" | "warning" | "success";
@@ -54,6 +55,29 @@ export default function Investments() {
   const [expectedReturn, setExpectedReturn] = useState("7");
   const [portfolio, setPortfolio] = useState<InvestmentPosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const { plaidItems, allTransactions: plaidTxns, isLoading: plaidLoading } = usePlaidData();
+
+  // Derive account balances from plaidItems
+  const plaidAccounts = plaidItems.flatMap((item) =>
+    item.accounts.map((acc) => ({
+      ...acc,
+      institutionName: item.institution_name,
+    })),
+  );
+
+  // Net cash flow per account from transactions (to show spending context)
+  const totalPlaidBalance = plaidAccounts.reduce(
+    (sum, acc) => sum + (acc.balances.current ?? 0),
+    0,
+  );
+  const plaidMonthlyExpenses = plaidTxns
+    .filter((t) => t.amount > 0)
+    .reduce((s, t) => s + t.amount, 0);
+  const plaidMonthlyIncome = plaidTxns
+    .filter((t) => t.amount < 0)
+    .reduce((s, t) => s + Math.abs(t.amount), 0);
+
   const [newInvestment, setNewInvestment] = useState({
     name: "",
     type: "etf" as InvestmentType,
@@ -419,6 +443,56 @@ export default function Investments() {
 
         {activeTab === "portfolio" ? (
           <div className="space-y-6">
+            {/* ── Linked Bank Accounts (from Plaid) ── */}
+            {plaidAccounts.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="flex items-center gap-2">
+                    <Wallet className="size-5 text-primary" />
+                    Linked Accounts
+                  </h3>
+                  {plaidLoading && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock className="size-3" /> Syncing…
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+                  {plaidAccounts.map((acc) => (
+                    <div key={acc.account_id} className="rounded-lg bg-muted/40 border border-border p-4">
+                      <div className="text-xs text-muted-foreground mb-1 truncate">{acc.institutionName}</div>
+                      <div className="font-medium truncate">{acc.name}</div>
+                      {acc.mask && (
+                        <div className="text-xs text-muted-foreground">••••{acc.mask}</div>
+                      )}
+                      <div className="mt-2 text-lg text-primary">
+                        {formatCurrency(acc.balances.current ?? 0, acc.balances.iso_currency_code ?? currency)}
+                      </div>
+                      {acc.balances.available != null && acc.balances.available !== acc.balances.current && (
+                        <div className="text-xs text-muted-foreground">
+                          Available: {formatCurrency(acc.balances.available, acc.balances.iso_currency_code ?? currency)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-border text-sm">
+                  <div>
+                    <div className="text-muted-foreground text-xs mb-1">Total Balance</div>
+                    <div className="text-base font-medium text-primary">{formatCurrency(totalPlaidBalance, currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs mb-1">Total Spent</div>
+                    <div className="text-base font-medium text-destructive">-{formatCurrency(plaidMonthlyExpenses, currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground text-xs mb-1">Total Income</div>
+                    <div className="text-base font-medium">{formatCurrency(plaidMonthlyIncome, currency)}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="bg-card border border-border rounded-xl p-6">
                 <div className="text-sm text-muted-foreground mb-2">{t("investmentsPage.totalInvested")}</div>
