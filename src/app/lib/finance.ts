@@ -3,6 +3,8 @@ import { convertCurrency } from "./currency";
 import type {
   BudgetCategory,
   BudgetCategoryInput,
+  GoalContribution,
+  GoalContributionInput,
   SavingsGoal,
   SavingsGoalInput,
   Subscription,
@@ -32,6 +34,20 @@ interface BudgetCategoryRow {
   original_budget: number | null;
   icon: string;
   color: string;
+  created_at: string;
+}
+
+interface GoalContributionRow {
+  id: string;
+  user_id: string;
+  goal_id: string;
+  amount: number;
+  currency: string | null;
+  original_amount: number | null;
+  contribution_type: "manual" | "initial" | "surplus_recommendation_accepted" | "adjustment";
+  source: string;
+  note: string | null;
+  occurred_on: string;
   created_at: string;
 }
 
@@ -75,6 +91,20 @@ const budgetCategorySelect = `
   created_at
 `;
 
+const goalContributionSelect = `
+  id,
+  user_id,
+  goal_id,
+  amount,
+  currency,
+  original_amount,
+  contribution_type,
+  source,
+  note,
+  occurred_on,
+  created_at
+`;
+
 const subscriptionSelect = `
   id,
   user_id,
@@ -115,6 +145,22 @@ function mapBudgetCategory(row: BudgetCategoryRow): BudgetCategory {
     originalBudget: Number(row.original_budget ?? row.budget),
     icon: row.icon,
     color: row.color,
+    createdAt: row.created_at,
+  };
+}
+
+function mapGoalContribution(row: GoalContributionRow): GoalContribution {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    goalId: row.goal_id,
+    amount: Number(row.amount),
+    currency: row.currency ?? "USD",
+    originalAmount: Number(row.original_amount ?? row.amount),
+    contributionType: row.contribution_type,
+    source: row.source,
+    note: row.note,
+    occurredOn: row.occurred_on,
     createdAt: row.created_at,
   };
 }
@@ -169,7 +215,20 @@ export async function createSavingsGoal(userId: string, input: SavingsGoalInput)
     .single();
 
   if (error) throw error;
-  return mapSavingsGoal(data as SavingsGoalRow);
+  const goal = mapSavingsGoal(data as SavingsGoalRow);
+
+  if ((input.originalCurrentAmount ?? input.currentAmount) > 0) {
+    await createGoalContribution(userId, goal.id, {
+      amount: input.currentAmount,
+      currency: input.currency ?? "USD",
+      originalAmount: input.originalCurrentAmount ?? input.currentAmount,
+      contributionType: "initial",
+      source: "goal_creation",
+      note: "Initial saved amount",
+    });
+  }
+
+  return goal;
 }
 
 export async function updateSavingsGoal(
@@ -216,6 +275,132 @@ export async function removeSavingsGoal(userId: string, goalId: string) {
     .eq("user_id", userId);
 
   if (error) throw error;
+}
+
+export async function listGoalContributions(userId: string, goalId: string) {
+  const { data, error } = await supabase
+    .from("goal_contributions")
+    .select(goalContributionSelect)
+    .eq("user_id", userId)
+    .eq("goal_id", goalId)
+    .order("occurred_on", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []).map((row) => mapGoalContribution(row as GoalContributionRow));
+}
+
+async function recalculateGoalCurrentAmount(userId: string, goalId: string) {
+  const [{ data: goalData, error: goalError }, { data: contributionData, error: contributionError }] =
+    await Promise.all([
+      supabase
+        .from("savings_goals")
+        .select(savingsGoalSelect)
+        .eq("id", goalId)
+        .eq("user_id", userId)
+        .single(),
+      supabase
+        .from("goal_contributions")
+        .select(goalContributionSelect)
+        .eq("user_id", userId)
+        .eq("goal_id", goalId),
+    ]);
+
+  if (goalError) throw goalError;
+  if (contributionError) throw contributionError;
+
+  const goal = mapSavingsGoal(goalData as SavingsGoalRow);
+  const contributions = (contributionData ?? []).map((row) => mapGoalContribution(row as GoalContributionRow));
+  const nextOriginalCurrentAmount = contributions.reduce(
+    (sum, contribution) =>
+      sum + convertCurrency(contribution.originalAmount, contribution.currency, goal.currency),
+    0,
+  );
+
+  const { data, error } = await supabase
+    .from("savings_goals")
+    .update({
+      current_amount: nextOriginalCurrentAmount,
+      original_current_amount: nextOriginalCurrentAmount,
+    })
+    .eq("id", goalId)
+    .eq("user_id", userId)
+    .select(savingsGoalSelect)
+    .single();
+
+  if (error) throw error;
+  return mapSavingsGoal(data as SavingsGoalRow);
+}
+
+export async function createGoalContribution(
+  userId: string,
+  goalId: string,
+  input: GoalContributionInput,
+) {
+  const { data, error } = await supabase
+    .from("goal_contributions")
+    .insert({
+      user_id: userId,
+      goal_id: goalId,
+      amount: input.amount,
+      currency: input.currency ?? "USD",
+      original_amount: input.originalAmount ?? input.amount,
+      contribution_type: input.contributionType ?? "manual",
+      source: input.source ?? "manual",
+      note: input.note ?? null,
+      occurred_on: input.occurredOn ?? new Date().toISOString().slice(0, 10),
+    })
+    .select(goalContributionSelect)
+    .single();
+
+  if (error) throw error;
+
+  const contribution = mapGoalContribution(data as GoalContributionRow);
+  await recalculateGoalCurrentAmount(userId, goalId);
+
+  return contribution;
+}
+
+export async function updateGoalContribution(
+  userId: string,
+  goalId: string,
+  contributionId: string,
+  updates: Partial<GoalContributionInput>,
+) {
+  const payload = {
+    ...(updates.amount !== undefined ? { amount: updates.amount } : {}),
+    ...(updates.currency !== undefined ? { currency: updates.currency } : {}),
+    ...(updates.originalAmount !== undefined ? { original_amount: updates.originalAmount } : {}),
+    ...(updates.contributionType !== undefined ? { contribution_type: updates.contributionType } : {}),
+    ...(updates.source !== undefined ? { source: updates.source } : {}),
+    ...(updates.note !== undefined ? { note: updates.note ?? null } : {}),
+    ...(updates.occurredOn !== undefined ? { occurred_on: updates.occurredOn } : {}),
+  };
+
+  const { data, error } = await supabase
+    .from("goal_contributions")
+    .update(payload)
+    .eq("id", contributionId)
+    .eq("goal_id", goalId)
+    .eq("user_id", userId)
+    .select(goalContributionSelect)
+    .single();
+
+  if (error) throw error;
+  await recalculateGoalCurrentAmount(userId, goalId);
+  return mapGoalContribution(data as GoalContributionRow);
+}
+
+export async function removeGoalContribution(userId: string, goalId: string, contributionId: string) {
+  const { error } = await supabase
+    .from("goal_contributions")
+    .delete()
+    .eq("id", contributionId)
+    .eq("goal_id", goalId)
+    .eq("user_id", userId);
+
+  if (error) throw error;
+  return recalculateGoalCurrentAmount(userId, goalId);
 }
 
 export async function listBudgetCategories(userId: string) {
@@ -363,6 +548,10 @@ export function getSavingsGoalAmountsInCurrency(goal: SavingsGoal, currency: str
     targetAmount: convertCurrency(goal.originalTargetAmount, goal.currency, currency),
     currentAmount: convertCurrency(goal.originalCurrentAmount, goal.currency, currency),
   };
+}
+
+export function getGoalContributionAmountInCurrency(contribution: GoalContribution, currency: string) {
+  return convertCurrency(contribution.originalAmount, contribution.currency, currency);
 }
 
 export function getBudgetAmountInCurrency(category: BudgetCategory, currency: string) {

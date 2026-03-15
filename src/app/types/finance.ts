@@ -12,6 +12,30 @@ export interface SavingsGoal {
   createdAt: string;
 }
 
+export interface GoalContribution {
+  id: string;
+  userId: string;
+  goalId: string;
+  amount: number;
+  currency: string;
+  originalAmount: number;
+  contributionType: "manual" | "initial" | "surplus_recommendation_accepted" | "adjustment";
+  source: string;
+  note: string | null;
+  occurredOn: string;
+  createdAt: string;
+}
+
+export interface GoalContributionInput {
+  amount: number;
+  currency?: string;
+  originalAmount?: number;
+  contributionType?: "manual" | "initial" | "surplus_recommendation_accepted" | "adjustment";
+  source?: string;
+  note?: string | null;
+  occurredOn?: string;
+}
+
 export interface SavingsGoalInput {
   name: string;
   targetAmount: number;

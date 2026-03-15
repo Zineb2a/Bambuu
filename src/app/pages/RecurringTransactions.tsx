@@ -41,7 +41,7 @@ export default function RecurringTransactions() {
     amount: "",
     category: "",
     type: "expense" as "income" | "expense",
-    frequency: "monthly" as "daily" | "weekly" | "monthly" | "yearly",
+    frequency: "monthly" as "daily" | "weekly" | "biweekly" | "monthly" | "yearly",
   });
 
   useEffect(() => {
@@ -331,15 +331,16 @@ export default function RecurringTransactions() {
                   onChange={(e) =>
                     setFormData((current) => ({
                       ...current,
-                      frequency: e.target.value as "daily" | "weekly" | "monthly" | "yearly",
+                      frequency: e.target.value as "daily" | "weekly" | "biweekly" | "monthly" | "yearly",
                     }))
                   }
                   className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly</option>
+                  <option value="daily">{localizeFrequency("daily")}</option>
+                  <option value="weekly">{localizeFrequency("weekly")}</option>
+                  <option value="biweekly">{localizeFrequency("biweekly")}</option>
+                  <option value="monthly">{localizeFrequency("monthly")}</option>
+                  <option value="yearly">{localizeFrequency("yearly")}</option>
                 </select>
 
                 <button

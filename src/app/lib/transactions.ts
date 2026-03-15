@@ -15,7 +15,7 @@ interface TransactionRow {
   type: "income" | "expense";
   is_recurring: boolean | null;
   recurring_active: boolean | null;
-  recurring_frequency: "daily" | "weekly" | "monthly" | "yearly" | null;
+  recurring_frequency: "daily" | "weekly" | "biweekly" | "monthly" | "yearly" | null;
   created_at: string;
 }
 

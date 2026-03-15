@@ -10,7 +10,7 @@ export interface Transaction {
   type: "income" | "expense";
   isRecurring: boolean;
   recurringActive: boolean;
-  recurringFrequency: "daily" | "weekly" | "monthly" | "yearly" | null;
+  recurringFrequency: "daily" | "weekly" | "biweekly" | "monthly" | "yearly" | null;
   createdAt: string;
 }
 
@@ -24,5 +24,5 @@ export interface TransactionInput {
   type: "income" | "expense";
   isRecurring?: boolean;
   recurringActive?: boolean;
-  recurringFrequency?: "daily" | "weekly" | "monthly" | "yearly";
+  recurringFrequency?: "daily" | "weekly" | "biweekly" | "monthly" | "yearly";
 }

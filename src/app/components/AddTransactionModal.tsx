@@ -15,7 +15,7 @@ interface AddTransactionModalProps {
     currency?: string;
     originalAmount?: number;
     isRecurring?: boolean;
-    recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurringFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
   }) => Promise<void>;
   defaultCurrency?: string;
   exchangeRates?: { [key: string]: number };
@@ -31,7 +31,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedCurrency, setSelectedCurrency] = useState(defaultCurrency);
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'>('monthly');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -292,7 +292,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
                 <div className="pl-6">
                   <label className="text-xs text-muted-foreground mb-2 block">{t("addTransaction.frequency")}</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((freq) => (
+                    {(['daily', 'weekly', 'biweekly', 'monthly', 'yearly'] as const).map((freq) => (
                       <button
                         key={freq}
                         type="button"

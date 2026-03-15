@@ -33,6 +33,7 @@ const categoryTranslations: Record<string, { English: string; Français: string 
 const frequencyTranslations = {
   daily: { English: "Daily", Français: "Quotidien" },
   weekly: { English: "Weekly", Français: "Hebdomadaire" },
+  biweekly: { English: "Biweekly", Français: "Toutes les deux semaines" },
   monthly: { English: "Monthly", Français: "Mensuel" },
   yearly: { English: "Yearly", Français: "Annuel" },
 } as const;
@@ -50,7 +51,7 @@ export function localizeCategory(language: AppLanguage, value: string) {
 
 export function localizeFrequency(
   language: AppLanguage,
-  value: "daily" | "weekly" | "monthly" | "yearly" | null | undefined
+  value: "daily" | "weekly" | "biweekly" | "monthly" | "yearly" | null | undefined
 ) {
   if (!value || !(value in frequencyTranslations)) {
     // Fallback: Capitalize first letter or return 'Recurring'

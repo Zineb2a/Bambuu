@@ -5,6 +5,7 @@ import {
   TrendingUp,
   TrendingDown,
   Target,
+  PiggyBank,
   ShoppingCart,
   Book,
   Utensils,
@@ -39,8 +40,9 @@ import {
 import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { BRAND_LOGO_SRC } from "../lib/branding";
-import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
+import { convertCurrency, formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import {
+  createGoalContribution,
   getBudgetAmountInCurrency,
   getSavingsGoalAmountsInCurrency,
   listBudgetCategories,
@@ -68,6 +70,9 @@ export default function Home() {
   const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState<"week" | "month" | "year">("month");
+  const [showContributionModal, setShowContributionModal] = useState(false);
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [contributionNote, setContributionNote] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -310,6 +315,41 @@ export default function Home() {
       default:
         return <ShoppingCart className="size-4" />;
     }
+  };
+
+  const handleContributeToGoal = async () => {
+    if (!user || !pinnedGoal || !contributionAmount) {
+      return;
+    }
+
+    await createGoalContribution(user.id, pinnedGoal.id, {
+      amount: parseFloat(contributionAmount),
+      currency,
+      originalAmount: parseFloat(contributionAmount),
+      contributionType: "manual",
+      source: "home_bamboo",
+      note: contributionNote || null,
+    });
+
+    setGoals((current) =>
+      current.map((goal) =>
+        goal.id === pinnedGoal.id
+          ? {
+              ...goal,
+              currentAmount:
+                goal.currentAmount + convertCurrency(parseFloat(contributionAmount), currency, goal.currency),
+              originalCurrentAmount:
+                goal.originalCurrentAmount +
+                convertCurrency(parseFloat(contributionAmount), currency, goal.currency),
+            }
+          : goal,
+      ),
+    );
+
+    setContributionAmount("");
+    setContributionNote("");
+    setShowContributionModal(false);
+    window.dispatchEvent(new Event("financialDataChanged"));
   };
 
   return (
@@ -574,6 +614,15 @@ export default function Home() {
               </div>
               <div className="text-xs text-muted-foreground">{t("home.goal")}</div>
               <div className="text-sm font-medium mt-1">{pinnedGoal ? formatCurrency(savingsGoal, currency) : t("home.noGoalPinned")}</div>
+              {pinnedGoal ? (
+                <button
+                  onClick={() => setShowContributionModal(true)}
+                  className="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  <PiggyBank className="size-4" />
+                  {t("home.contribute")}
+                </button>
+              ) : null}
             </div>
 
             <div className="relative flex-1 w-16 min-h-[400px] rounded-full overflow-hidden bg-[#E8D7B8] shadow-inner border-2 border-[#D4C5A9]">
@@ -650,6 +699,56 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {showContributionModal && pinnedGoal ? (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
+                <h2 className="text-white">{t("home.contributeToGoal")}</h2>
+                <button
+                  onClick={() => {
+                    setShowContributionModal(false);
+                    setContributionAmount("");
+                    setContributionNote("");
+                  }}
+                  className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("home.contributionAmount")}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={contributionAmount}
+                    onChange={(e) => setContributionAmount(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="100"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("home.contributionNote")}</label>
+                  <input
+                    type="text"
+                    value={contributionNote}
+                    onChange={(e) => setContributionNote(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder={t("home.contributionNotePlaceholder")}
+                  />
+                </div>
+                <button
+                  onClick={handleContributeToGoal}
+                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <PiggyBank className="size-4" />
+                  {t("home.contribute")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </Layout>
   );

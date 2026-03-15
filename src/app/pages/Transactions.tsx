@@ -845,7 +845,6 @@ export default function Transactions() {
                           {categories.map((category) => (
                             <option key={category} value={category}>
                               {localizeCategory(
-                                language,
                                 category.charAt(0).toUpperCase() +
                                   category.slice(1).toLowerCase()
                               )}
@@ -924,17 +923,19 @@ export default function Transactions() {
                           {transaction.isRecurring ? (
                             <span
                               className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full border border-primary/20"
-                              title={t("transactions.recurringTitle", {
+                            >
+                              <Repeat className="size-3" />
+                              {t("transactions.recurringTitle", {
                                 frequency:
                                   transaction.recurringFrequency &&
                                   [
                                     "daily",
                                     "weekly",
+                                    "biweekly",
                                     "monthly",
                                     "yearly",
                                   ].includes(transaction.recurringFrequency)
                                     ? localizeFrequency(
-                                        language,
                                         transaction.recurringFrequency as any
                                       )
                                     : transaction.recurringFrequency
@@ -944,45 +945,11 @@ export default function Transactions() {
                                       transaction.recurringFrequency.slice(1)
                                     : "Recurring",
                               })}
-                            >
-                              <Repeat className="size-3" />
-                              {(() => {
-                                if (
-                                  !transaction.recurringFrequency ||
-                                  ![
-                                    "daily",
-                                    "weekly",
-                                    "monthly",
-                                    "yearly",
-                                  ].includes(transaction.recurringFrequency)
-                                ) {
-                                  return transaction.recurringFrequency
-                                    ? transaction.recurringFrequency
-                                        .charAt(0)
-                                        .toUpperCase() +
-                                        transaction.recurringFrequency.slice(1)
-                                    : "Recurring";
-                                }
-                                try {
-                                  return localizeFrequency(
-                                    language,
-                                    transaction.recurringFrequency as any
-                                  );
-                                } catch {
-                                  return (
-                                    transaction.recurringFrequency
-                                      .charAt(0)
-                                      .toUpperCase() +
-                                    transaction.recurringFrequency.slice(1)
-                                  );
-                                }
-                              })()}
                             </span>
                           ) : null}
                         </div>
                         <div className="text-sm text-muted-foreground">
                           {localizeCategory(
-                            language,
                             transaction.category.charAt(0).toUpperCase() +
                               transaction.category.slice(1).toLowerCase()
                           )}

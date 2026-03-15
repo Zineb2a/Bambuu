@@ -30,7 +30,7 @@ create table if not exists public.transactions (
   is_recurring boolean not null default false,
   recurring_active boolean not null default true,
   recurring_frequency text check (
-    recurring_frequency in ('daily', 'weekly', 'monthly', 'yearly')
+    recurring_frequency in ('daily', 'weekly', 'biweekly', 'monthly', 'yearly')
   ),
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
@@ -70,6 +70,33 @@ alter table public.savings_goals add column if not exists created_at timestamptz
 alter table public.savings_goals add column if not exists updated_at timestamptz not null default timezone('utc', now());
 update public.savings_goals set original_target_amount = target_amount where original_target_amount is null;
 update public.savings_goals set original_current_amount = current_amount where original_current_amount is null;
+
+create table if not exists public.goal_contributions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  goal_id uuid not null references public.savings_goals (id) on delete cascade,
+  amount numeric(12,2) not null check (amount >= 0),
+  currency text not null default 'USD',
+  original_amount numeric(12,2),
+  contribution_type text not null default 'manual' check (
+    contribution_type in ('manual', 'initial', 'surplus_recommendation_accepted', 'adjustment')
+  ),
+  source text not null default 'manual',
+  note text,
+  occurred_on date not null default current_date,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+alter table public.goal_contributions add column if not exists currency text not null default 'USD';
+alter table public.goal_contributions add column if not exists original_amount numeric(12,2);
+alter table public.goal_contributions add column if not exists contribution_type text not null default 'manual';
+alter table public.goal_contributions add column if not exists source text not null default 'manual';
+alter table public.goal_contributions add column if not exists note text;
+alter table public.goal_contributions add column if not exists occurred_on date not null default current_date;
+alter table public.goal_contributions add column if not exists created_at timestamptz not null default timezone('utc', now());
+alter table public.goal_contributions add column if not exists updated_at timestamptz not null default timezone('utc', now());
+update public.goal_contributions set original_amount = amount where original_amount is null;
 
 create table if not exists public.budget_categories (
   id uuid primary key default gen_random_uuid(),
@@ -231,6 +258,7 @@ create trigger on_auth_user_created
 alter table public.profiles enable row level security;
 alter table public.transactions enable row level security;
 alter table public.savings_goals enable row level security;
+alter table public.goal_contributions enable row level security;
 alter table public.budget_categories enable row level security;
 alter table public.subscriptions enable row level security;
 alter table public.investments enable row level security;
@@ -301,6 +329,30 @@ create policy "savings_goals_update_own"
 drop policy if exists "savings_goals_delete_own" on public.savings_goals;
 create policy "savings_goals_delete_own"
   on public.savings_goals
+  for delete
+  using (auth.uid() = user_id);
+
+drop policy if exists "goal_contributions_select_own" on public.goal_contributions;
+create policy "goal_contributions_select_own"
+  on public.goal_contributions
+  for select
+  using (auth.uid() = user_id);
+
+drop policy if exists "goal_contributions_insert_own" on public.goal_contributions;
+create policy "goal_contributions_insert_own"
+  on public.goal_contributions
+  for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "goal_contributions_update_own" on public.goal_contributions;
+create policy "goal_contributions_update_own"
+  on public.goal_contributions
+  for update
+  using (auth.uid() = user_id);
+
+drop policy if exists "goal_contributions_delete_own" on public.goal_contributions;
+create policy "goal_contributions_delete_own"
+  on public.goal_contributions
   for delete
   using (auth.uid() = user_id);
 

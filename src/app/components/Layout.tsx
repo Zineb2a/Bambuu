@@ -84,7 +84,7 @@ export default function Layout({ children }: LayoutProps) {
     currency?: string;
     originalAmount?: number;
     isRecurring?: boolean;
-    recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurringFrequency?: 'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
   }) => {
     if (!user) {
       return;

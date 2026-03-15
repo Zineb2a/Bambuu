@@ -243,6 +243,13 @@ export default function NotificationsPanel() {
         start: startOfMonth(subMonths(now, 1)),
         end: endOfMonth(subMonths(now, 1)),
       };
+      const previousMonthIncome = transactions
+        .filter(
+          (transaction) =>
+            transaction.type === "income" &&
+            isWithinInterval(parseTransactionDate(transaction.occurredOn), previousMonthInterval),
+        )
+        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
       const previousMonthExpenses = transactions
         .filter(
           (transaction) =>
@@ -274,6 +281,21 @@ export default function NotificationsPanel() {
               }),
         payload: { month: format(now, "yyyy-MM") },
       });
+
+      const pinnedGoal = goals.find((goal) => goal.pinned) ?? goals[0];
+      const leftover = previousMonthIncome - previousMonthExpenses;
+      if (pinnedGoal && leftover > 0) {
+        generated.push({
+          sourceKey: `leftover-${pinnedGoal.id}-${format(subMonths(now, 1), "yyyy-MM")}`,
+          type: "info",
+          title: t("notifications.leftoverSuggestion"),
+          message: t("notifications.leftoverSuggestionMessage", {
+            amount: formatCurrency(leftover, settings.currency),
+            goal: pinnedGoal.name,
+          }),
+          payload: { goalId: pinnedGoal.id, month: format(subMonths(now, 1), "yyyy-MM"), leftover },
+        });
+      }
     }
 
     transactions

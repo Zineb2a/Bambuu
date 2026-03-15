@@ -20,6 +20,7 @@ import {
   Heart,
   Pin,
   PinOff,
+  PiggyBank,
 } from "lucide-react";
 import { endOfMonth, isWithinInterval, startOfMonth } from "date-fns";
 import Layout from "../components/Layout";
@@ -27,20 +28,25 @@ import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
 import {
   createBudgetCategory,
+  createGoalContribution,
   createSavingsGoal,
   getBudgetAmountInCurrency,
+  getGoalContributionAmountInCurrency,
   getSavingsGoalAmountsInCurrency,
   listBudgetCategories,
+  listGoalContributions,
   listSavingsGoals,
   removeBudgetCategory,
+  removeGoalContribution,
   removeSavingsGoal,
+  updateGoalContribution,
   updateBudgetCategory,
   updateSavingsGoal,
 } from "../lib/finance";
 import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
-import type { BudgetCategory, SavingsGoal } from "../types/finance";
+import type { BudgetCategory, GoalContribution, SavingsGoal } from "../types/finance";
 import type { Transaction } from "../types/transactions";
 
 const iconOptions = [
@@ -84,6 +90,7 @@ export default function BudgetGoals() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [goalContributions, setGoalContributions] = useState<Record<string, GoalContribution[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [editingGoal, setEditingGoal] = useState<string | null>(null);
   const [goalName, setGoalName] = useState("");
@@ -98,6 +105,12 @@ export default function BudgetGoals() {
   const [newCategoryBudget, setNewCategoryBudget] = useState("");
   const [newCategoryIcon, setNewCategoryIcon] = useState("shopping");
   const [newCategoryColor, setNewCategoryColor] = useState("#DDEB9D");
+  const [contributionGoalId, setContributionGoalId] = useState<string | null>(null);
+  const [contributionAmount, setContributionAmount] = useState("");
+  const [contributionNote, setContributionNote] = useState("");
+  const [editingContribution, setEditingContribution] = useState<GoalContribution | null>(null);
+  const [editingContributionAmount, setEditingContributionAmount] = useState("");
+  const [editingContributionNote, setEditingContributionNote] = useState("");
 
   const getDefaultIconForCategory = (categoryName: string) => {
     const normalized = categoryName.trim().toLowerCase();
@@ -159,6 +172,11 @@ export default function BudgetGoals() {
         setGoals(goalData);
         setCategories(categoryData);
         setTransactions(transactionData);
+
+        const contributionEntries = await Promise.all(
+          goalData.map(async (goal) => [goal.id, await listGoalContributions(user.id, goal.id)] as const),
+        );
+        setGoalContributions(Object.fromEntries(contributionEntries));
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -181,6 +199,20 @@ export default function BudgetGoals() {
       window.removeEventListener("financialDataChanged", reload);
     };
   }, [user]);
+
+  const refreshGoalsAndContributions = async () => {
+    if (!user) {
+      return;
+    }
+
+    const goalData = await listSavingsGoals(user.id);
+    setGoals(goalData);
+
+    const contributionEntries = await Promise.all(
+      goalData.map(async (goal) => [goal.id, await listGoalContributions(user.id, goal.id)] as const),
+    );
+    setGoalContributions(Object.fromEntries(contributionEntries));
+  };
 
   const categoriesWithSpent = useMemo<BudgetCategoryWithSpent[]>(() => {
     const now = new Date();
@@ -278,10 +310,8 @@ export default function BudgetGoals() {
       const updated = await updateSavingsGoal(user.id, editingGoal, {
         name: goalName,
         targetAmount: parseFloat(goalAmount),
-        currentAmount: parseFloat(goalCurrent) || 0,
         currency,
         originalTargetAmount: parseFloat(goalAmount),
-        originalCurrentAmount: parseFloat(goalCurrent) || 0,
         emoji: goalEmoji,
       });
       setGoals(goals.map((goal) => (goal.id === editingGoal ? updated : goal)));
@@ -309,6 +339,11 @@ export default function BudgetGoals() {
 
     await removeSavingsGoal(user.id, goalId);
     setGoals(goals.filter((goal) => goal.id !== goalId));
+    setGoalContributions((current) => {
+      const next = { ...current };
+      delete next[goalId];
+      return next;
+    });
     window.dispatchEvent(new Event("financialDataChanged"));
   };
 
@@ -417,6 +452,74 @@ export default function BudgetGoals() {
     setAddingCategory(true);
   };
 
+  const resetContributionForm = () => {
+    setContributionGoalId(null);
+    setContributionAmount("");
+    setContributionNote("");
+  };
+
+  const resetEditingContributionForm = () => {
+    setEditingContribution(null);
+    setEditingContributionAmount("");
+    setEditingContributionNote("");
+  };
+
+  const handleAddContribution = async () => {
+    if (!user || !contributionGoalId || !contributionAmount) {
+      return;
+    }
+
+    const contribution = await createGoalContribution(user.id, contributionGoalId, {
+      amount: parseFloat(contributionAmount),
+      currency,
+      originalAmount: parseFloat(contributionAmount),
+      contributionType: "manual",
+      source: "budget_goals_modal",
+      note: contributionNote || null,
+    });
+
+    setGoalContributions((current) => ({
+      ...current,
+      [contributionGoalId]: [contribution, ...(current[contributionGoalId] ?? [])],
+    }));
+    await refreshGoalsAndContributions();
+    resetContributionForm();
+    window.dispatchEvent(new Event("financialDataChanged"));
+  };
+
+  const handleUpdateContribution = async () => {
+    if (!user || !editingContribution || !editingContributionAmount) {
+      return;
+    }
+
+    await updateGoalContribution(user.id, editingContribution.goalId, editingContribution.id, {
+      amount: parseFloat(editingContributionAmount),
+      currency: editingContribution.currency,
+      originalAmount: parseFloat(editingContributionAmount),
+      note: editingContributionNote || null,
+      source: editingContribution.source,
+      contributionType: editingContribution.contributionType,
+      occurredOn: editingContribution.occurredOn,
+    });
+
+    await refreshGoalsAndContributions();
+    resetEditingContributionForm();
+    window.dispatchEvent(new Event("financialDataChanged"));
+  };
+
+  const handleDeleteContribution = async (contribution: GoalContribution) => {
+    if (!user || !confirm(t("budgetGoalsPage.confirmDeleteContribution"))) {
+      return;
+    }
+
+    await removeGoalContribution(user.id, contribution.goalId, contribution.id);
+    await refreshGoalsAndContributions();
+    if (editingContribution?.id === contribution.id) {
+      resetEditingContributionForm();
+    }
+    window.dispatchEvent(new Event("financialDataChanged"));
+  };
+
   return (
     <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
@@ -516,13 +619,12 @@ export default function BudgetGoals() {
                           />
 
                           <input
-                            type="number"
-                            step="0.01"
-                            value={goalCurrent}
-                            onChange={(e) => setGoalCurrent(e.target.value)}
-                            className="w-full px-3 py-2 bg-input-background rounded border border-border focus:border-primary focus:outline-none"
-                            placeholder={t("budgetGoalsPage.currentAmount")}
+                            type="text"
+                            value={formatCurrency(displayGoal.currentAmount, currency)}
+                            readOnly
+                            className="w-full px-3 py-2 bg-muted rounded border border-border text-muted-foreground focus:outline-none"
                           />
+                          <p className="text-xs text-muted-foreground">{t("budgetGoalsPage.currentAmountManagedByContributions")}</p>
 
                           <div className="grid grid-cols-6 gap-2">
                             {emojiOptions.slice(0, 6).map((emoji) => (
@@ -574,7 +676,7 @@ export default function BudgetGoals() {
                                   setEditingGoal(goal.id);
                                   setGoalName(goal.name);
                                   setGoalAmount(String(goal.originalTargetAmount));
-                                  setGoalCurrent(String(goal.originalCurrentAmount));
+                                  setGoalCurrent("");
                                   setGoalEmoji(goal.emoji);
                                 }}
                                 className="p-2 hover:bg-muted rounded-lg transition-colors"
@@ -586,6 +688,12 @@ export default function BudgetGoals() {
                                 className="p-2 hover:bg-destructive/10 text-destructive rounded-lg transition-colors"
                               >
                                 <Trash2 className="size-4" />
+                              </button>
+                              <button
+                                onClick={() => setContributionGoalId(goal.id)}
+                                className="p-2 hover:bg-primary/10 text-primary rounded-lg transition-colors"
+                              >
+                                <PiggyBank className="size-4" />
                               </button>
                               <button
                                 onClick={() => handlePinGoal(goal.id)}
@@ -610,6 +718,58 @@ export default function BudgetGoals() {
                             <span className="text-muted-foreground">
                               {t("budgetGoalsPage.toGo", { amount: formatCurrency(displayGoal.targetAmount - displayGoal.currentAmount, currency) })}
                             </span>
+                          </div>
+                          <div className="mt-4">
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">{t("budgetGoalsPage.recentContributions")}</span>
+                              <button
+                                onClick={() => setContributionGoalId(goal.id)}
+                                className="text-xs text-primary hover:underline"
+                              >
+                                {t("budgetGoalsPage.contribute")}
+                              </button>
+                            </div>
+                            {(goalContributions[goal.id] ?? []).length === 0 ? (
+                              <div className="text-xs text-muted-foreground">{t("budgetGoalsPage.noContributions")}</div>
+                            ) : (
+                              <div className="space-y-1">
+                                {(goalContributions[goal.id] ?? []).slice(0, 4).map((contribution) => (
+                                  <div key={contribution.id} className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="truncate">
+                                        {contribution.contributionType === "initial"
+                                          ? t("budgetGoalsPage.initialContribution")
+                                          : contribution.note || t("budgetGoalsPage.contribute")}
+                                      </div>
+                                      <div className="text-[11px] text-muted-foreground/80">
+                                        {contribution.occurredOn}
+                                      </div>
+                                    </div>
+                                    <span>{formatCurrency(getGoalContributionAmountInCurrency(contribution, currency), currency)}</span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          setEditingContribution(contribution);
+                                          setEditingContributionAmount(String(contribution.originalAmount));
+                                          setEditingContributionNote(contribution.note ?? "");
+                                        }}
+                                        className="p-1 hover:bg-muted rounded transition-colors"
+                                        aria-label={t("budgetGoalsPage.editContribution")}
+                                      >
+                                        <Edit2 className="size-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteContribution(contribution)}
+                                        className="p-1 hover:bg-destructive/10 text-destructive rounded transition-colors"
+                                        aria-label={t("budgetGoalsPage.deleteContribution")}
+                                      >
+                                        <Trash2 className="size-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </>
                       )}
@@ -821,6 +981,7 @@ export default function BudgetGoals() {
                     placeholder="0"
                     className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
+                  <p className="mt-2 text-xs text-muted-foreground">{t("budgetGoalsPage.initialSavedAmountHelp")}</p>
                 </div>
 
                 <div>
@@ -847,6 +1008,92 @@ export default function BudgetGoals() {
                 >
                   <Plus className="size-4" />
                   {t("budgetGoalsPage.addGoal")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {contributionGoalId ? (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
+                <h2 className="text-white">{t("budgetGoalsPage.contributeToGoal")}</h2>
+                <button onClick={resetContributionForm} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
+                  <X className="size-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.contributionAmount")}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={contributionAmount}
+                    onChange={(e) => setContributionAmount(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="100"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.contributionNote")}</label>
+                  <input
+                    type="text"
+                    value={contributionNote}
+                    onChange={(e) => setContributionNote(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder={t("budgetGoalsPage.contributionNotePlaceholder")}
+                  />
+                </div>
+                <button
+                  onClick={handleAddContribution}
+                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <PiggyBank className="size-4" />
+                  {t("budgetGoalsPage.addContribution")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editingContribution ? (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full">
+              <div className="sticky top-0 bg-primary text-primary-foreground px-6 py-4 rounded-t-2xl flex items-center justify-between">
+                <h2 className="text-white">{t("budgetGoalsPage.editContribution")}</h2>
+                <button onClick={resetEditingContributionForm} className="hover:bg-white/20 p-2 rounded-lg transition-colors">
+                  <X className="size-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.contributionAmount")}</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingContributionAmount}
+                    onChange={(e) => setEditingContributionAmount(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="100"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block">{t("budgetGoalsPage.contributionNote")}</label>
+                  <input
+                    type="text"
+                    value={editingContributionNote}
+                    onChange={(e) => setEditingContributionNote(e.target.value)}
+                    className="w-full px-4 py-3 bg-input-background rounded-lg border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder={t("budgetGoalsPage.contributionNotePlaceholder")}
+                  />
+                </div>
+                <button
+                  onClick={handleUpdateContribution}
+                  className="w-full bg-primary text-primary-foreground py-3 rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                >
+                  <Check className="size-4" />
+                  {t("budgetGoalsPage.updateContribution")}
                 </button>
               </div>
             </div>
