@@ -111,6 +111,7 @@ export default function BudgetGoals() {
   const [editingContribution, setEditingContribution] = useState<GoalContribution | null>(null);
   const [editingContributionAmount, setEditingContributionAmount] = useState("");
   const [editingContributionNote, setEditingContributionNote] = useState("");
+  const [categoryPinFeedback, setCategoryPinFeedback] = useState("");
 
   const getDefaultIconForCategory = (categoryName: string) => {
     const normalized = categoryName.trim().toLowerCase();
@@ -155,8 +156,10 @@ export default function BudgetGoals() {
 
     let isMounted = true;
 
-    const loadData = async () => {
-      setIsLoading(true);
+    const loadData = async (showLoading = true) => {
+      if (showLoading) {
+        setIsLoading(true);
+      }
 
       try {
         const [goalData, categoryData, transactionData] = await Promise.all([
@@ -178,7 +181,7 @@ export default function BudgetGoals() {
         );
         setGoalContributions(Object.fromEntries(contributionEntries));
       } finally {
-        if (isMounted) {
+        if (isMounted && showLoading) {
           setIsLoading(false);
         }
       }
@@ -187,7 +190,7 @@ export default function BudgetGoals() {
     loadData();
 
     const reload = () => {
-      loadData();
+      loadData(false);
     };
 
     window.addEventListener("transactionsChanged", reload);
@@ -793,6 +796,12 @@ export default function BudgetGoals() {
             </button>
           </div>
 
+          {categoryPinFeedback ? (
+            <div className="mb-4 rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+              {categoryPinFeedback}
+            </div>
+          ) : null}
+
           {isLoading ? (
             <div className="rounded-lg bg-secondary p-4 text-sm text-muted-foreground">{t("budgetGoalsPage.loadingBudgetCategories")}</div>
           ) : (
@@ -884,6 +893,36 @@ export default function BudgetGoals() {
                               ) : (
                                 <>
                                   <button
+                                    onClick={async () => {
+                                      if (!user) {
+                                        return;
+                                      }
+
+                                      const shouldPin = !category.pinned;
+                                      const updated = await updateBudgetCategory(user.id, category.id, {
+                                        pinned: shouldPin,
+                                      });
+
+                                      setCategories((current) =>
+                                        current.map((item) =>
+                                          item.id === category.id ? updated : item,
+                                        ),
+                                      );
+                                      setCategoryPinFeedback(
+                                        shouldPin
+                                          ? `${category.name} pinned to Home.`
+                                          : `${category.name} removed from Home.`,
+                                      );
+                                      window.setTimeout(() => setCategoryPinFeedback(""), 2200);
+                                      window.dispatchEvent(new Event("financialDataChanged"));
+                                    }}
+                                    className={`p-2 hover:bg-muted rounded-lg transition-colors ${
+                                      category.pinned ? "bg-primary text-primary-foreground" : ""
+                                    }`}
+                                  >
+                                    {category.pinned ? <Pin className="size-4" /> : <PinOff className="size-4" />}
+                                  </button>
+                                  <button
                                     onClick={() => {
                                       setEditingCategory(category.id);
                                       setEditBudget(String(category.originalBudget));
@@ -925,6 +964,11 @@ export default function BudgetGoals() {
                                   <span className="text-primary">{t("budgetGoalsPage.left", { amount: formatCurrency(category.displayBudget - category.spent, currency) })}</span>
                                 )}
                               </div>
+                              {category.pinned ? (
+                                <div className="mt-2 text-xs text-primary">
+                                  Pinned to Home
+                                </div>
+                              ) : null}
                             </>
                           )}
                         </>

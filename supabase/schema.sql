@@ -107,6 +107,7 @@ create table if not exists public.budget_categories (
   original_budget numeric(12,2),
   icon text not null default 'shopping',
   color text not null default '#95d5b2',
+  pinned boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
@@ -115,6 +116,7 @@ alter table public.budget_categories add column if not exists currency text not 
 alter table public.budget_categories add column if not exists original_budget numeric(12,2);
 alter table public.budget_categories add column if not exists icon text not null default 'shopping';
 alter table public.budget_categories add column if not exists color text not null default '#95d5b2';
+alter table public.budget_categories add column if not exists pinned boolean not null default false;
 alter table public.budget_categories add column if not exists created_at timestamptz not null default timezone('utc', now());
 alter table public.budget_categories add column if not exists updated_at timestamptz not null default timezone('utc', now());
 update public.budget_categories set original_budget = budget where original_budget is null;

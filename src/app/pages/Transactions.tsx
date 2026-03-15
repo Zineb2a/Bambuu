@@ -27,6 +27,7 @@ import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import {
   formatTransactionDate,
   getTransactionAmountInCurrency,
+  listTransactionOccurrencesInInterval,
   listTransactions,
   parseTransactionDate,
   removeTransaction,
@@ -35,6 +36,12 @@ import {
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
+
+interface TransactionListItem {
+  id: string;
+  occurredOn: string;
+  transaction: Transaction;
+}
 
 export default function Transactions() {
   const { user } = useAuth();
@@ -217,9 +224,52 @@ export default function Transactions() {
     }
   };
 
+  const transactionItems = useMemo(() => {
+    const today = new Date();
+    const rangeStart =
+      selectedDateRange === "week"
+        ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7)
+        : selectedDateRange === "month"
+          ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30)
+          : selectedDateRange === "quarter"
+            ? new Date(today.getFullYear(), today.getMonth(), today.getDate() - 90)
+            : selectedDate
+              ? new Date(selectedDate)
+              : undefined;
+    const rangeEnd = selectedDate ? new Date(selectedDate) : today;
+
+    return allTransactions.flatMap((transaction) => {
+      if (rangeStart) {
+        return listTransactionOccurrencesInInterval(transaction, rangeStart, rangeEnd).map((occurrence) => ({
+          id: occurrence.id,
+          occurredOn: occurrence.occurredOn,
+          transaction: occurrence.transaction,
+        }));
+      }
+
+      if (transaction.isRecurring && transaction.recurringActive && transaction.recurringFrequency) {
+        return listTransactionOccurrencesInInterval(transaction, parseTransactionDate(transaction.occurredOn), today).map(
+          (occurrence) => ({
+            id: occurrence.id,
+            occurredOn: occurrence.occurredOn,
+            transaction: occurrence.transaction,
+          }),
+        );
+      }
+
+      return [
+        {
+          id: `${transaction.id}:${transaction.occurredOn}`,
+          occurredOn: transaction.occurredOn,
+          transaction,
+        },
+      ];
+    });
+  }, [allTransactions, selectedDate, selectedDateRange]);
+
   const filteredTransactions = useMemo(
     () =>
-      allTransactions.filter((transaction) => {
+      transactionItems.filter(({ transaction, occurredOn }) => {
         if (
           searchQuery &&
           !transaction.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -252,7 +302,7 @@ export default function Transactions() {
         }
 
         if (selectedDateRange !== "all") {
-          const transactionDate = parseTransactionDate(transaction.occurredOn);
+          const transactionDate = parseTransactionDate(occurredOn);
           const today = new Date();
           const daysDiff = Math.floor(
             (today.getTime() - transactionDate.getTime()) /
@@ -265,7 +315,7 @@ export default function Transactions() {
         }
 
         if (selectedDate) {
-          const transactionDate = parseTransactionDate(transaction.occurredOn);
+          const transactionDate = parseTransactionDate(occurredOn);
           const selectedDateObj = new Date(selectedDate);
           if (
             transactionDate.toDateString() !== selectedDateObj.toDateString()
@@ -277,7 +327,6 @@ export default function Transactions() {
         return true;
       }),
     [
-      allTransactions,
       maxAmount,
       minAmount,
       searchQuery,
@@ -285,6 +334,7 @@ export default function Transactions() {
       selectedDate,
       selectedDateRange,
       selectedType,
+      transactionItems,
       currency,
     ]
   );
@@ -307,22 +357,22 @@ export default function Transactions() {
       case "amount_asc":
         sorted.sort(
           (a, b) =>
-            getTransactionAmountInCurrency(a, currency) -
-            getTransactionAmountInCurrency(b, currency)
+            getTransactionAmountInCurrency(a.transaction, currency) -
+            getTransactionAmountInCurrency(b.transaction, currency)
         );
         break;
       case "amount_desc":
         sorted.sort(
           (a, b) =>
-            getTransactionAmountInCurrency(b, currency) -
-            getTransactionAmountInCurrency(a, currency)
+            getTransactionAmountInCurrency(b.transaction, currency) -
+            getTransactionAmountInCurrency(a.transaction, currency)
         );
         break;
       case "name_asc":
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        sorted.sort((a, b) => a.transaction.name.localeCompare(b.transaction.name));
         break;
       case "name_desc":
-        sorted.sort((a, b) => b.name.localeCompare(a.name));
+        sorted.sort((a, b) => b.transaction.name.localeCompare(a.transaction.name));
         break;
       default:
         break;
@@ -331,18 +381,16 @@ export default function Transactions() {
   }, [filteredTransactions, sortOption, currency]);
 
   const totalIncome = sortedTransactions
-    .filter((transaction) => transaction.type === "income")
+    .filter(({ transaction }) => transaction.type === "income")
     .reduce(
-      (sum, transaction) =>
-        sum + getTransactionAmountInCurrency(transaction, currency),
+      (sum, { transaction }) => sum + getTransactionAmountInCurrency(transaction, currency),
       0
     );
 
   const totalExpenses = sortedTransactions
-    .filter((transaction) => transaction.type === "expense")
+    .filter(({ transaction }) => transaction.type === "expense")
     .reduce(
-      (sum, transaction) =>
-        sum + getTransactionAmountInCurrency(transaction, currency),
+      (sum, { transaction }) => sum + getTransactionAmountInCurrency(transaction, currency),
       0
     );
 
@@ -377,7 +425,7 @@ export default function Transactions() {
         "Type",
         "Date",
       ],
-      ...sortedTransactions.map((transaction) => [
+      ...sortedTransactions.map(({ transaction, occurredOn }) => [
         transaction.name,
         getTransactionAmountInCurrency(transaction, currency).toString(),
         currency,
@@ -385,7 +433,7 @@ export default function Transactions() {
         transaction.currency,
         transaction.category,
         transaction.type,
-        transaction.occurredOn,
+        occurredOn,
       ]),
     ];
     const csvContent = csvData.map((row) => row.join(",")).join("\n");
@@ -405,7 +453,10 @@ export default function Transactions() {
       exportDate: new Date().toISOString(),
       totalIncome,
       totalExpenses,
-      transactions: sortedTransactions,
+      transactions: sortedTransactions.map(({ transaction, occurredOn }) => ({
+        ...transaction,
+        occurredOn,
+      })),
     };
     const blob = new Blob([JSON.stringify(jsonData, null, 2)], {
       type: "application/json",
@@ -799,9 +850,9 @@ export default function Transactions() {
               </p>
             </div>
           ) : (
-            sortedTransactions.map((transaction) => (
+            sortedTransactions.map(({ id, occurredOn, transaction }) => (
               <div
-                key={transaction.id}
+                key={id}
                 className="bg-card border border-border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow"
               >
                 {editingId === transaction.id ? (
@@ -955,7 +1006,7 @@ export default function Transactions() {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {formatTransactionDate(transaction.occurredOn)}
+                          {formatTransactionDate(occurredOn)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {t("common.paidIn", {
@@ -1009,7 +1060,7 @@ export default function Transactions() {
           <div className="mt-6 text-center text-sm text-muted-foreground">
             {t("transactions.showingCount", {
               shown: sortedTransactions.length,
-              total: allTransactions.length,
+              total: transactionItems.length,
             })}
           </div>
         ) : null}

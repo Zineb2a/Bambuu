@@ -33,6 +33,7 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringFrequency, setRecurringFrequency] = useState<'daily' | 'weekly' | 'biweekly' | 'monthly' | 'yearly'>('monthly');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
     setSelectedCurrency(defaultCurrency);
@@ -69,21 +70,23 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const resolvedCategory = category === '__custom__' ? customCategory.trim() : category;
+    const resolvedName = name.trim();
+    const resolvedCategory = category === '__custom__' ? customCategory.trim() : category.trim();
+    const parsedAmount = parseFloat(amount);
 
-    if (!name || !amount || !resolvedCategory) {
-      alert(t("addTransaction.fillAllFields"));
+    if (!resolvedName || !Number.isFinite(parsedAmount) || parsedAmount <= 0 || !resolvedCategory) {
+      setSubmitError(t("addTransaction.fillAllFields"));
       return;
     }
 
     setIsSubmitting(true);
+    setSubmitError('');
 
     try {
-      const parsedAmount = parseFloat(amount);
       const convertedAmount = convertToDefaultCurrency(parsedAmount, selectedCurrency);
 
       await onAddTransaction({
-        name,
+        name: resolvedName,
         amount: convertedAmount,
         category: resolvedCategory,
         type,
@@ -103,6 +106,8 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
       setIsRecurring(false);
       setRecurringFrequency('monthly');
       onClose();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : t("addTransaction.fillAllFields"));
     } finally {
       setIsSubmitting(false);
     }
@@ -122,6 +127,12 @@ export default function AddTransactionModal({ isOpen, onClose, onAddTransaction,
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+          {submitError ? (
+            <div className="md:col-span-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {submitError}
+            </div>
+          ) : null}
+
           {/* Type Toggle */}
           <div className="grid grid-cols-2 gap-3 md:col-span-2">
             <button

@@ -6,6 +6,7 @@ import NotificationsPanel from "./NotificationsPanel";
 import AddTransactionModal from "./AddTransactionModal";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
+import { ensureStarterFinancialSetup } from "../lib/finance";
 import { createTransaction } from "../lib/transactions";
 import { getUserProfile, getUserSettings, updateUserSettings } from "../lib/settings";
 import { BRAND_LOGO_SRC } from "../lib/branding";
@@ -68,6 +69,7 @@ export default function Layout({ children }: LayoutProps) {
           getUserProfile(user.id, user.email ?? null),
           getUserSettings(user.id),
         ]);
+        const createdStarterData = await ensureStarterFinancialSetup(user.id, settings.currency);
         if (isMounted) {
           setProfilePhoto(profile.avatarUrl);
           setDefaultCurrency(settings.currency);
@@ -75,6 +77,9 @@ export default function Layout({ children }: LayoutProps) {
           setDarkMode(settings.darkMode);
           setShowWalkthrough(!settings.onboardingCompleted);
           setWalkthroughStep(0);
+          if (createdStarterData) {
+            window.dispatchEvent(new Event("financialDataChanged"));
+          }
         }
       } catch {
         if (isMounted) {
@@ -129,6 +134,7 @@ export default function Layout({ children }: LayoutProps) {
 
     await createTransaction(user.id, transaction);
     window.dispatchEvent(new Event("transactionsChanged"));
+    window.dispatchEvent(new Event("financialDataChanged"));
   };
 
   const handleToggleDarkMode = async () => {

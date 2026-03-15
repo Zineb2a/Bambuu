@@ -6,7 +6,6 @@ import {
   endOfMonth,
   format,
   formatDistanceToNow,
-  isWithinInterval,
   startOfMonth,
   subMonths,
 } from "date-fns";
@@ -21,7 +20,11 @@ import {
   listSavingsGoals,
   listSubscriptions,
 } from "../lib/finance";
-import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
+import {
+  getTransactionAmountInCurrency,
+  getTransactionAmountInInterval,
+  listTransactions,
+} from "../lib/transactions";
 import { dismissNotification, listNotifications, markAllNotificationsRead, markNotificationRead, syncNotifications } from "../lib/notifications";
 import { getUserSettings } from "../lib/settings";
 import { useI18n } from "../providers/I18nProvider";
@@ -191,11 +194,7 @@ export default function NotificationsPanel() {
       start: startOfMonth(now),
       end: endOfMonth(now),
     };
-    const currentMonthExpenses = transactions.filter(
-      (transaction) =>
-        transaction.type === "expense" &&
-        isWithinInterval(parseTransactionDate(transaction.occurredOn), currentMonthInterval),
-    );
+    const currentMonthExpenses = transactions.filter((transaction) => transaction.type === "expense");
 
     const generated: AppNotificationInput[] = [];
 
@@ -238,7 +237,11 @@ export default function NotificationsPanel() {
         const displayBudget = getBudgetAmountInCurrency(category, settings.currency);
         const spent = currentMonthExpenses
           .filter((transaction) => transaction.category.toLowerCase() === category.name.toLowerCase())
-          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+          .reduce(
+            (sum, transaction) =>
+              sum + getTransactionAmountInInterval(transaction, settings.currency, currentMonthInterval.start, currentMonthInterval.end),
+            0,
+          );
 
         if (displayBudget <= 0) {
           return;
@@ -343,14 +346,15 @@ export default function NotificationsPanel() {
 
     if (settings.weeklySummary) {
       const thisMonthIncome = transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "income" &&
-            isWithinInterval(parseTransactionDate(transaction.occurredOn), currentMonthInterval),
-        )
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+        .filter((transaction) => transaction.type === "income")
+        .reduce(
+          (sum, transaction) =>
+            sum + getTransactionAmountInInterval(transaction, settings.currency, currentMonthInterval.start, currentMonthInterval.end),
+          0,
+        );
       const thisMonthExpenses = currentMonthExpenses.reduce(
-        (sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency),
+        (sum, transaction) =>
+          sum + getTransactionAmountInInterval(transaction, settings.currency, currentMonthInterval.start, currentMonthInterval.end),
         0,
       );
       const previousMonthInterval = {
@@ -358,19 +362,19 @@ export default function NotificationsPanel() {
         end: endOfMonth(subMonths(now, 1)),
       };
       const previousMonthIncome = transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "income" &&
-            isWithinInterval(parseTransactionDate(transaction.occurredOn), previousMonthInterval),
-        )
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+        .filter((transaction) => transaction.type === "income")
+        .reduce(
+          (sum, transaction) =>
+            sum + getTransactionAmountInInterval(transaction, settings.currency, previousMonthInterval.start, previousMonthInterval.end),
+          0,
+        );
       const previousMonthExpenses = transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "expense" &&
-            isWithinInterval(parseTransactionDate(transaction.occurredOn), previousMonthInterval),
-        )
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, settings.currency), 0);
+        .filter((transaction) => transaction.type === "expense")
+        .reduce(
+          (sum, transaction) =>
+            sum + getTransactionAmountInInterval(transaction, settings.currency, previousMonthInterval.start, previousMonthInterval.end),
+          0,
+        );
       const delta =
         previousMonthExpenses > 0
           ? ((thisMonthExpenses - previousMonthExpenses) / previousMonthExpenses) * 100

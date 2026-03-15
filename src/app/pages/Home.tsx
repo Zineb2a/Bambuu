@@ -32,7 +32,6 @@ import {
   endOfWeek,
   endOfYear,
   format,
-  isWithinInterval,
   startOfMonth,
   startOfWeek,
   startOfYear,
@@ -50,9 +49,9 @@ import {
 } from "../lib/finance";
 import {
   formatTransactionDate,
+  getTransactionAmountInInterval,
   getTransactionAmountInCurrency,
   listTransactions,
-  parseTransactionDate,
 } from "../lib/transactions";
 import { getUserSettings } from "../lib/settings";
 import { useAuth } from "../providers/AuthProvider";
@@ -148,15 +147,6 @@ export default function Home() {
   const currentSavings = pinnedGoalAmounts.currentAmount;
   const savingsProgress = savingsGoal ? (currentSavings / savingsGoal) * 100 : 0;
 
-  const currentMonthTransactions = useMemo(() => {
-    const now = new Date();
-    const start = startOfMonth(now);
-    const end = endOfMonth(now);
-    return transactions.filter((transaction) =>
-      isWithinInterval(parseTransactionDate(transaction.occurredOn), { start, end }),
-    );
-  }, [transactions]);
-
   const balance = useMemo(
     () =>
       transactions.reduce(
@@ -170,32 +160,45 @@ export default function Home() {
   );
 
   const monthlyIncome = useMemo(
-    () =>
-      currentMonthTransactions
+    () => {
+      const now = new Date();
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+
+      return transactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
-    [currency, currentMonthTransactions],
+        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
+    },
+    [currency, transactions],
   );
 
   const monthlyExpenses = useMemo(
-    () =>
-      currentMonthTransactions
+    () => {
+      const now = new Date();
+      const start = startOfMonth(now);
+      const end = endOfMonth(now);
+
+      return transactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
-    [currency, currentMonthTransactions],
+        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
+    },
+    [currency, transactions],
   );
 
   const monthlyBudgetOverview = useMemo(() => {
-    return budgetCategories
+    const now = new Date();
+    const start = startOfMonth(now);
+    const end = endOfMonth(now);
+    const rankedCategories = budgetCategories
       .map((category) => {
         const budget = getBudgetAmountInCurrency(category, currency);
-        const spent = currentMonthTransactions
+        const spent = transactions
           .filter(
             (transaction) =>
               transaction.type === "expense" &&
               transaction.category.toLowerCase() === category.name.toLowerCase(),
           )
-          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, start, end), 0);
 
         return {
           id: category.id,
@@ -205,10 +208,20 @@ export default function Home() {
           percentage: budget > 0 ? (spent / budget) * 100 : 0,
           remaining: budget - spent,
           isOverBudget: spent > budget,
+          pinned: category.pinned,
         };
       })
-      .sort((a, b) => b.percentage - a.percentage);
-  }, [budgetCategories, currency, currentMonthTransactions]);
+      .sort((a, b) => {
+        if (a.pinned !== b.pinned) {
+          return a.pinned ? -1 : 1;
+        }
+
+        return b.percentage - a.percentage;
+      });
+
+    const pinnedCategories = rankedCategories.filter((category) => category.pinned);
+    return pinnedCategories.length > 0 ? pinnedCategories : rankedCategories.slice(0, 4);
+  }, [budgetCategories, currency, transactions]);
 
   const expensesByCategory = useMemo(() => {
     const now = new Date();
@@ -219,15 +232,11 @@ export default function Home() {
           ? { start: startOfYear(now), end: endOfYear(now) }
           : { start: startOfMonth(now), end: endOfMonth(now) };
 
-    const expenseTransactions = transactions.filter(
-      (transaction) =>
-        transaction.type === "expense" &&
-        isWithinInterval(parseTransactionDate(transaction.occurredOn), interval),
-    );
+    const expenseTransactions = transactions.filter((transaction) => transaction.type === "expense");
 
     const byCategory = expenseTransactions.reduce<Record<string, number>>((acc, transaction) => {
       acc[transaction.category] =
-        (acc[transaction.category] ?? 0) + getTransactionAmountInCurrency(transaction, currency);
+        (acc[transaction.category] ?? 0) + getTransactionAmountInInterval(transaction, currency, interval.start, interval.end);
       return acc;
     }, {});
 
@@ -246,19 +255,15 @@ export default function Home() {
       return Array.from({ length: 7 }, (_, index) => {
         const day = new Date(start);
         day.setDate(start.getDate() + index);
-        const sameDay = transactions.filter(
-          (transaction) =>
-            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM-dd") === format(day, "yyyy-MM-dd"),
-        );
 
         return {
           period: format(day, "EEE"),
-          income: sameDay
+          income: transactions
             .filter((transaction) => transaction.type === "income")
-            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
-          expenses: sameDay
+            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0),
+          expenses: transactions
             .filter((transaction) => transaction.type === "expense")
-            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0),
         };
       });
     }
@@ -268,40 +273,37 @@ export default function Home() {
         start: startOfYear(now),
         end: endOfMonth(now),
       }).map((month) => {
-        const inMonth = transactions.filter(
-          (transaction) =>
-            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === format(month, "yyyy-MM"),
-        );
-
         return {
           period: format(month, "MMM"),
-          income: inMonth
+          income: transactions
             .filter((transaction) => transaction.type === "income")
-            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
-          expenses: inMonth
+            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)), 0),
+          expenses: transactions
             .filter((transaction) => transaction.type === "expense")
-            .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0),
+            .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)), 0),
         };
       });
     }
 
-    return Object.values(
-      currentMonthTransactions.reduce<
-        Record<string, { period: string; income: number; expenses: number }>
-      >((acc, transaction) => {
-        const period = format(parseTransactionDate(transaction.occurredOn), "MMM d");
-        if (!acc[period]) {
-          acc[period] = { period, income: 0, expenses: 0 };
-        }
-        if (transaction.type === "income") {
-          acc[period].income += getTransactionAmountInCurrency(transaction, currency);
-        } else {
-          acc[period].expenses += getTransactionAmountInCurrency(transaction, currency);
-        }
-        return acc;
-      }, {}),
-    );
-  }, [currency, currentMonthTransactions, timePeriod, transactions]);
+    const start = startOfMonth(now);
+    const end = endOfMonth(now);
+    const result: Array<{ period: string; income: number; expenses: number }> = [];
+
+    for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+      const currentDay = new Date(day);
+      result.push({
+        period: format(currentDay, "MMM d"),
+        income: transactions
+          .filter((transaction) => transaction.type === "income")
+          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, currentDay, currentDay), 0),
+        expenses: transactions
+          .filter((transaction) => transaction.type === "expense")
+          .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, currentDay, currentDay), 0),
+      });
+    }
+
+    return result.filter((entry) => entry.income > 0 || entry.expenses > 0);
+  }, [currency, timePeriod, transactions]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -626,7 +628,12 @@ export default function Home() {
                 <span className="text-3xl">{pinnedGoal?.emoji ?? "🎯"}</span>
               </div>
               <div className="text-xs text-muted-foreground">{t("home.goal")}</div>
-              <div className="text-sm font-medium mt-1">{pinnedGoal ? formatCurrency(savingsGoal, currency) : t("home.noGoalPinned")}</div>
+              <div className="mt-1 text-sm font-medium">
+                {pinnedGoal?.name ?? t("home.noGoalPinned")}
+              </div>
+              <div className="mt-1 text-sm font-medium">
+                {pinnedGoal ? formatCurrency(savingsGoal, currency) : formatCurrency(0, currency)}
+              </div>
             </div>
 
             <div className="mb-4 w-full sm:hidden">

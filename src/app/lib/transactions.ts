@@ -1,4 +1,4 @@
-import { format, parseISO } from "date-fns";
+import { addDays, addMonths, addWeeks, addYears, format, isAfter, isBefore, parseISO } from "date-fns";
 import { supabase } from "../../lib/supabase";
 import { convertCurrency } from "./currency";
 import type { Transaction, TransactionInput } from "../types/transactions";
@@ -63,6 +63,113 @@ export function parseTransactionDate(date: string) {
 
 export function getTransactionAmountInCurrency(transaction: Transaction, currency: string) {
   return convertCurrency(transaction.originalAmount, transaction.currency, currency);
+}
+
+function getNextOccurrenceDate(
+  date: Date,
+  frequency: NonNullable<Transaction["recurringFrequency"]>,
+) {
+  switch (frequency) {
+    case "daily":
+      return addDays(date, 1);
+    case "weekly":
+      return addWeeks(date, 1);
+    case "biweekly":
+      return addWeeks(date, 2);
+    case "monthly":
+      return addMonths(date, 1);
+    case "yearly":
+      return addYears(date, 1);
+  }
+}
+
+export function countTransactionOccurrencesInInterval(
+  transaction: Transaction,
+  intervalStart: Date,
+  intervalEnd: Date,
+) {
+  const startDate = parseTransactionDate(transaction.occurredOn);
+
+  if (isAfter(startDate, intervalEnd)) {
+    return 0;
+  }
+
+  if (!transaction.isRecurring || !transaction.recurringFrequency || !transaction.recurringActive) {
+    return !isBefore(startDate, intervalStart) && !isAfter(startDate, intervalEnd) ? 1 : 0;
+  }
+
+  let occurrences = 0;
+  let occurrenceDate = startDate;
+
+  while (!isAfter(occurrenceDate, intervalEnd)) {
+    if (!isBefore(occurrenceDate, intervalStart)) {
+      occurrences += 1;
+    }
+    occurrenceDate = getNextOccurrenceDate(occurrenceDate, transaction.recurringFrequency);
+  }
+
+  return occurrences;
+}
+
+export function getTransactionAmountInInterval(
+  transaction: Transaction,
+  currency: string,
+  intervalStart: Date,
+  intervalEnd: Date,
+) {
+  return (
+    getTransactionAmountInCurrency(transaction, currency) *
+    countTransactionOccurrencesInInterval(transaction, intervalStart, intervalEnd)
+  );
+}
+
+export interface TransactionOccurrence {
+  id: string;
+  sourceTransactionId: string;
+  occurredOn: string;
+  transaction: Transaction;
+}
+
+export function listTransactionOccurrencesInInterval(
+  transaction: Transaction,
+  intervalStart: Date,
+  intervalEnd: Date,
+) {
+  const startDate = parseTransactionDate(transaction.occurredOn);
+
+  if (isAfter(startDate, intervalEnd)) {
+    return [] as TransactionOccurrence[];
+  }
+
+  const occurrences: TransactionOccurrence[] = [];
+
+  if (!transaction.isRecurring || !transaction.recurringFrequency || !transaction.recurringActive) {
+    if (!isBefore(startDate, intervalStart) && !isAfter(startDate, intervalEnd)) {
+      occurrences.push({
+        id: `${transaction.id}:${transaction.occurredOn}`,
+        sourceTransactionId: transaction.id,
+        occurredOn: transaction.occurredOn,
+        transaction,
+      });
+    }
+    return occurrences;
+  }
+
+  let occurrenceDate = startDate;
+
+  while (!isAfter(occurrenceDate, intervalEnd)) {
+    if (!isBefore(occurrenceDate, intervalStart)) {
+      occurrences.push({
+        id: `${transaction.id}:${format(occurrenceDate, "yyyy-MM-dd")}`,
+        sourceTransactionId: transaction.id,
+        occurredOn: format(occurrenceDate, "yyyy-MM-dd"),
+        transaction,
+      });
+    }
+    occurrenceDate = getNextOccurrenceDate(occurrenceDate, transaction.recurringFrequency);
+  }
+
+  return occurrences;
 }
 
 export async function listTransactions(userId: string) {

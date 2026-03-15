@@ -34,6 +34,7 @@ interface BudgetCategoryRow {
   original_budget: number | null;
   icon: string;
   color: string;
+  pinned: boolean;
   created_at: string;
 }
 
@@ -88,6 +89,7 @@ const budgetCategorySelect = `
   original_budget,
   icon,
   color,
+  pinned,
   created_at
 `;
 
@@ -145,6 +147,7 @@ function mapBudgetCategory(row: BudgetCategoryRow): BudgetCategory {
     originalBudget: Number(row.original_budget ?? row.budget),
     icon: row.icon,
     color: row.color,
+    pinned: row.pinned,
     createdAt: row.created_at,
   };
 }
@@ -425,6 +428,7 @@ export async function createBudgetCategory(userId: string, input: BudgetCategory
       original_budget: input.originalBudget ?? input.budget,
       icon: input.icon,
       color: input.color,
+      pinned: input.pinned ?? false,
     })
     .select(budgetCategorySelect)
     .single();
@@ -445,6 +449,7 @@ export async function updateBudgetCategory(
     ...(updates.originalBudget !== undefined ? { original_budget: updates.originalBudget } : {}),
     ...(updates.icon !== undefined ? { icon: updates.icon } : {}),
     ...(updates.color !== undefined ? { color: updates.color } : {}),
+    ...(updates.pinned !== undefined ? { pinned: updates.pinned } : {}),
   };
 
   const { data, error } = await supabase
@@ -560,4 +565,47 @@ export function getBudgetAmountInCurrency(category: BudgetCategory, currency: st
 
 export function getSubscriptionAmountInCurrency(subscription: Subscription, currency: string) {
   return convertCurrency(subscription.originalMonthlyCost, subscription.currency, currency);
+}
+
+export async function ensureStarterFinancialSetup(userId: string, currency = "USD") {
+  const [existingGoals, existingCategories] = await Promise.all([
+    listSavingsGoals(userId),
+    listBudgetCategories(userId),
+  ]);
+
+  let createdAnything = false;
+
+  if (existingGoals.length === 0) {
+    await createSavingsGoal(userId, {
+      name: "New Laptop",
+      targetAmount: 1200,
+      currentAmount: 0,
+      currency,
+      originalTargetAmount: 1200,
+      originalCurrentAmount: 0,
+      emoji: "💻",
+      pinned: true,
+    });
+    createdAnything = true;
+  }
+
+  if (existingCategories.length === 0) {
+    const starterCategories: BudgetCategoryInput[] = [
+      { name: "Food & Groceries", budget: 250, currency, originalBudget: 250, icon: "utensils", color: "#74c69d" },
+      { name: "Transport", budget: 90, currency, originalBudget: 90, icon: "bus", color: "#95d5b2" },
+      { name: "Rent & Housing", budget: 700, currency, originalBudget: 700, icon: "home", color: "#b7e4c7" },
+      { name: "Utilities", budget: 120, currency, originalBudget: 120, icon: "smartphone", color: "#d8f3dc" },
+      { name: "School / Books", budget: 100, currency, originalBudget: 100, icon: "book", color: "#cad2c5" },
+      { name: "Entertainment", budget: 80, currency, originalBudget: 80, icon: "film", color: "#52b788" },
+      { name: "Shopping", budget: 120, currency, originalBudget: 120, icon: "shopping", color: "#40916c" },
+      { name: "Health", budget: 75, currency, originalBudget: 75, icon: "heart", color: "#84a98c" },
+      { name: "Subscriptions", budget: 45, currency, originalBudget: 45, icon: "music", color: "#2d6a4f" },
+      { name: "Other", budget: 60, currency, originalBudget: 60, icon: "shopping", color: "#52796f" },
+    ];
+
+    await Promise.all(starterCategories.map((category) => createBudgetCategory(userId, category)));
+    createdAnything = true;
+  }
+
+  return createdAnything;
 }

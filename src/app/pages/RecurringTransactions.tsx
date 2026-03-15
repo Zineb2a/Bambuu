@@ -36,6 +36,7 @@ export default function RecurringTransactions() {
   const [isLoading, setIsLoading] = useState(true);
   const [addingRecurring, setAddingRecurring] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     amount: "",
@@ -93,6 +94,7 @@ export default function RecurringTransactions() {
       type: "expense",
       frequency: "monthly",
     });
+    setSubmitError("");
     setEditingId(null);
     setAddingRecurring(false);
   };
@@ -107,6 +109,7 @@ export default function RecurringTransactions() {
     });
     setTransactions((current) => current.map((item) => (item.id === transaction.id ? updated : item)));
     window.dispatchEvent(new Event("transactionsChanged"));
+    window.dispatchEvent(new Event("financialDataChanged"));
   };
 
   const handleDelete = async (transactionId: string) => {
@@ -117,47 +120,64 @@ export default function RecurringTransactions() {
     await removeTransaction(user.id, transactionId);
     setTransactions((current) => current.filter((transaction) => transaction.id !== transactionId));
     window.dispatchEvent(new Event("transactionsChanged"));
+    window.dispatchEvent(new Event("financialDataChanged"));
   };
 
   const handleSave = async () => {
-    if (!user || !formData.name || !formData.amount || !formData.category) {
+    const resolvedName = formData.name.trim();
+    const resolvedCategory = formData.category.trim();
+    const parsedAmount = parseFloat(formData.amount);
+
+    if (!user) {
       return;
     }
 
-    if (editingId) {
-      const existing = transactions.find((transaction) => transaction.id === editingId);
-      if (!existing) {
-        return;
-      }
-
-      const updated = await updateTransaction(user.id, editingId, {
-        name: formData.name,
-        category: formData.category,
-        type: formData.type,
-        recurringFrequency: formData.frequency,
-        amount: parseFloat(formData.amount),
-        originalAmount: parseFloat(formData.amount),
-        currency,
-      });
-      setTransactions((current) => current.map((transaction) => (transaction.id === editingId ? updated : transaction)));
-    } else {
-      const created = await createTransaction(user.id, {
-        name: formData.name,
-        amount: parseFloat(formData.amount),
-        originalAmount: parseFloat(formData.amount),
-        currency,
-        category: formData.category,
-        occurredOn: new Date().toISOString().split("T")[0],
-        type: formData.type,
-        isRecurring: true,
-        recurringActive: true,
-        recurringFrequency: formData.frequency,
-      });
-      setTransactions((current) => [created, ...current]);
+    if (!resolvedName || !resolvedCategory || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setSubmitError(t("addTransaction.fillAllFields"));
+      return;
     }
 
-    resetForm();
-    window.dispatchEvent(new Event("transactionsChanged"));
+    setSubmitError("");
+
+    try {
+      if (editingId) {
+        const existing = transactions.find((transaction) => transaction.id === editingId);
+        if (!existing) {
+          return;
+        }
+
+        const updated = await updateTransaction(user.id, editingId, {
+          name: resolvedName,
+          category: resolvedCategory,
+          type: formData.type,
+          recurringFrequency: formData.frequency,
+          amount: parsedAmount,
+          originalAmount: parsedAmount,
+          currency,
+        });
+        setTransactions((current) => current.map((transaction) => (transaction.id === editingId ? updated : transaction)));
+      } else {
+        const created = await createTransaction(user.id, {
+          name: resolvedName,
+          amount: parsedAmount,
+          originalAmount: parsedAmount,
+          currency,
+          category: resolvedCategory,
+          occurredOn: new Date().toISOString().split("T")[0],
+          type: formData.type,
+          isRecurring: true,
+          recurringActive: true,
+          recurringFrequency: formData.frequency,
+        });
+        setTransactions((current) => [created, ...current]);
+      }
+
+      resetForm();
+      window.dispatchEvent(new Event("transactionsChanged"));
+      window.dispatchEvent(new Event("financialDataChanged"));
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : t("addTransaction.fillAllFields"));
+    }
   };
 
   const handleEdit = (transaction: Transaction) => {
@@ -168,6 +188,7 @@ export default function RecurringTransactions() {
       type: transaction.type,
       frequency: transaction.recurringFrequency ?? "monthly",
     });
+    setSubmitError("");
     setEditingId(transaction.id);
     setAddingRecurring(true);
   };
@@ -275,10 +296,19 @@ export default function RecurringTransactions() {
               </div>
 
               <div className="p-6 space-y-4">
+                {submitError ? (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {submitError}
+                  </div>
+                ) : null}
+
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    onClick={() => setFormData((current) => ({ ...current, type: "expense", category: "" }))}
+                    onClick={() => {
+                      setSubmitError("");
+                      setFormData((current) => ({ ...current, type: "expense", category: "" }));
+                    }}
                     className={`py-3 rounded-lg transition-all ${
                       formData.type === "expense" ? "bg-destructive text-destructive-foreground" : "bg-muted text-muted-foreground"
                     }`}
@@ -287,7 +317,10 @@ export default function RecurringTransactions() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setFormData((current) => ({ ...current, type: "income", category: "" }))}
+                    onClick={() => {
+                      setSubmitError("");
+                      setFormData((current) => ({ ...current, type: "income", category: "" }));
+                    }}
                     className={`py-3 rounded-lg transition-all ${
                       formData.type === "income" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                     }`}

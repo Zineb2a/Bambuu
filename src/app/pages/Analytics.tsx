@@ -51,7 +51,12 @@ import {
   listSavingsGoals,
   listSubscriptions,
 } from "../lib/finance";
-import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
+import {
+  getTransactionAmountInCurrency,
+  getTransactionAmountInInterval,
+  listTransactions,
+  parseTransactionDate,
+} from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal, Subscription } from "../types/finance";
@@ -168,16 +173,6 @@ export default function Analytics() {
     return { start: startOfMonth(now), end: endOfMonth(now) };
   }, [distributionPeriod, now]);
 
-  const periodTransactions = useMemo(
-    () =>
-      transactions.filter((transaction) =>
-        isWithinInterval(parseTransactionDate(transaction.occurredOn), selectedInterval),
-      ),
-    [selectedInterval, transactions],
-  );
-
-  const expenseTransactions = periodTransactions.filter((transaction) => transaction.type === "expense");
-  const incomeTransactions = periodTransactions.filter((transaction) => transaction.type === "income");
   const distributionTransactions = useMemo(
     () =>
       transactions.filter(
@@ -188,21 +183,28 @@ export default function Analytics() {
     [distributionInterval, transactions],
   );
 
-  const totalIncome = incomeTransactions.reduce(
-    (sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency),
-    0,
-  );
-  const totalExpenses = expenseTransactions.reduce(
-    (sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency),
-    0,
-  );
+  const totalIncome = transactions
+    .filter((transaction) => transaction.type === "income")
+    .reduce(
+      (sum, transaction) =>
+        sum + getTransactionAmountInInterval(transaction, currency, selectedInterval.start, selectedInterval.end),
+      0,
+    );
+  const totalExpenses = transactions
+    .filter((transaction) => transaction.type === "expense")
+    .reduce(
+      (sum, transaction) =>
+        sum + getTransactionAmountInInterval(transaction, currency, selectedInterval.start, selectedInterval.end),
+      0,
+    );
   const totalSaved = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? ((totalSaved / totalIncome) * 100).toFixed(1) : "0.0";
 
   const categoryData = useMemo(() => {
     const totals = distributionTransactions.reduce<Record<string, number>>((acc, transaction) => {
       acc[transaction.category] =
-        (acc[transaction.category] ?? 0) + getTransactionAmountInCurrency(transaction, currency);
+        (acc[transaction.category] ?? 0) +
+        getTransactionAmountInInterval(transaction, currency, distributionInterval.start, distributionInterval.end);
       return acc;
     }, {});
 
@@ -230,16 +232,14 @@ export default function Analytics() {
       start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
-      const monthKey = format(month, "yyyy-MM");
-      const inMonth = transactions.filter(
-        (transaction) => format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === monthKey,
-      );
-      const income = inMonth
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      const income = transactions
         .filter((transaction) => transaction.type === "income")
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
-      const expenses = inMonth
+        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, monthStart, monthEnd), 0);
+      const expenses = transactions
         .filter((transaction) => transaction.type === "expense")
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, monthStart, monthEnd), 0);
 
       return {
         month: format(month, "MMM"),
@@ -264,12 +264,8 @@ export default function Analytics() {
       end: endOfDay(now),
     }).map((day) => {
       const amount = transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "expense" &&
-            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM-dd") === format(day, "yyyy-MM-dd"),
-        )
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+        .filter((transaction) => transaction.type === "expense")
+        .reduce((sum, transaction) => sum + getTransactionAmountInInterval(transaction, currency, day, day), 0);
 
       return {
         day: format(day, "MMM d"),
@@ -297,14 +293,13 @@ export default function Analytics() {
       start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
-      const monthKey = format(month, "yyyy-MM");
       const actual = transactions
-        .filter(
-          (transaction) =>
-            transaction.type === "expense" &&
-            format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === monthKey,
-        )
-        .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+        .filter((transaction) => transaction.type === "expense")
+        .reduce(
+          (sum, transaction) =>
+            sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)),
+          0,
+        );
 
       const budget = budgetCategories.reduce(
         (sum, category) => sum + getBudgetAmountInCurrency(category, currency),
@@ -334,7 +329,6 @@ export default function Analytics() {
       start: startMonth,
       end: endOfMonth(now),
     }).map((month) => {
-      const monthKey = format(month, "yyyy-MM");
       const row: Record<string, string | number> = { month: format(month, "MMM") };
 
       trackedCategories.forEach((category) => {
@@ -342,10 +336,13 @@ export default function Analytics() {
           .filter(
             (transaction) =>
               transaction.type === "expense" &&
-              transaction.category.toLowerCase() === category.name.toLowerCase() &&
-              format(parseTransactionDate(transaction.occurredOn), "yyyy-MM") === monthKey,
+              transaction.category.toLowerCase() === category.name.toLowerCase(),
           )
-          .reduce((sum, transaction) => sum + getTransactionAmountInCurrency(transaction, currency), 0);
+          .reduce(
+            (sum, transaction) =>
+              sum + getTransactionAmountInInterval(transaction, currency, startOfMonth(month), endOfMonth(month)),
+            0,
+          );
       });
 
       return row;
