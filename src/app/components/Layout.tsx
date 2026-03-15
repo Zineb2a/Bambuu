@@ -206,7 +206,10 @@ export default function Layout({ children }: LayoutProps) {
                 className="h-full w-full object-contain"
               />
             </div>
-            <h1 className="text-base font-semibold tracking-[0.18em] text-white sm:text-lg md:text-2xl">
+            <h1
+              className="text-base font-semibold uppercase tracking-[0.22em] text-white sm:text-lg md:text-2xl"
+              style={{ fontFamily: '"Montserrat", sans-serif' }}
+            >
               BAMBUU
             </h1>
           </Link>

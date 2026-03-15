@@ -85,7 +85,12 @@ export default function Auth() {
             alt="Bambuu logo"
             className="mx-auto mb-5 h-24 w-24 object-contain"
           />
-          <h1 className="mb-3 text-5xl">Bambuu</h1>
+          <h1
+            className="mb-3 text-5xl uppercase tracking-[0.26em]"
+            style={{ fontFamily: '"Montserrat", sans-serif' }}
+          >
+            BAMBUU
+          </h1>
           <p className="text-lg text-muted-foreground">{t("auth.subtitle")}</p>
         </div>
 
