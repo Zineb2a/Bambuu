@@ -22,7 +22,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
-import Layout from "../components/Layout";
 import { useAuth } from "../providers/AuthProvider";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
@@ -398,7 +397,7 @@ export default function Investments() {
   };
 
   return (
-    <Layout>
+    <>
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="mb-6">
           <h1 className="text-3xl mb-2">{t("investmentsPage.title")}</h1>
@@ -1042,6 +1041,6 @@ export default function Investments() {
           </div>
         </div>
       ) : null}
-    </Layout>
+    </>
   );
 }

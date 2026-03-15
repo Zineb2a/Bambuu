@@ -49,12 +49,13 @@ import {
   startOfYear,
   subDays,
 } from "date-fns";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { BRAND_LOGO_SRC } from "../lib/branding";
 import { convertCurrency, formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import {
   createGoalContribution,
+  getCachedBudgetCategories,
+  getCachedSavingsGoals,
   getBudgetAmountInCurrency,
   getSavingsGoalAmountsInCurrency,
   listBudgetCategories,
@@ -63,11 +64,12 @@ import {
 import {
   createTransaction,
   formatTransactionDate,
+  getCachedTransactions,
   getTransactionAmountInCurrency,
   listTransactions,
   parseTransactionDate,
 } from "../lib/transactions";
-import { getUserSettings } from "../lib/settings";
+import { getCachedUserSettings, getUserSettings } from "../lib/settings";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, SavingsGoal } from "../types/finance";
@@ -117,9 +119,21 @@ export default function Home() {
     }
 
     let isMounted = true;
+    const cachedTransactions = getCachedTransactions(user.id);
+    const cachedGoals = getCachedSavingsGoals(user.id);
+    const cachedBudgetData = getCachedBudgetCategories(user.id);
+    const cachedSettings = getCachedUserSettings(user.id);
+
+    if (cachedTransactions) setTransactions(cachedTransactions);
+    if (cachedGoals) setGoals(cachedGoals);
+    if (cachedBudgetData) setBudgetCategories(cachedBudgetData);
+    if (cachedSettings) setUserCountry(cachedSettings.country ?? "US");
+    if (cachedTransactions || cachedGoals || cachedBudgetData || cachedSettings) {
+      setIsLoading(false);
+    }
 
     const loadTransactions = async () => {
-      setIsLoading(true);
+      setIsLoading(!(cachedTransactions || cachedGoals || cachedBudgetData || cachedSettings));
 
       try {
         const [transactionData, goalData, budgetData, settings] = await Promise.all([
@@ -148,7 +162,9 @@ export default function Home() {
       }
     };
 
-    loadTransactions();
+    if (!(cachedTransactions || cachedGoals || cachedBudgetData || cachedSettings)) {
+      loadTransactions();
+    }
 
     const handleTransactionsChanged = () => {
       loadTransactions();
@@ -455,7 +471,6 @@ export default function Home() {
   };
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-8">
         {isLoading && (
           <div className="flex items-center gap-2 text-muted-foreground mb-4 animate-pulse">
@@ -933,7 +948,5 @@ export default function Home() {
           </div>
         ) : null}
       </div>
-    </Layout>
   );
 }
-

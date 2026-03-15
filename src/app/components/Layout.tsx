@@ -1,5 +1,5 @@
 import { ReactNode, useState, useEffect, useMemo } from "react";
-import { Link } from "react-router";
+import { Link, Outlet } from "react-router";
 import { BarChart3, Menu, Moon, Plus, Sun, Target, User, Wallet } from "lucide-react";
 import Navigation from "./Navigation";
 import NotificationsPanel from "./NotificationsPanel";
@@ -14,7 +14,7 @@ import { useIsMobile } from "./ui/use-mobile";
 import type { UserSettings } from "../types/settings";
 
 interface LayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
@@ -242,7 +242,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content */}
       <main className="pt-20 md:pt-[11.5rem]">
-        {children}
+        {children ?? <Outlet />}
       </main>
 
       {user ? (

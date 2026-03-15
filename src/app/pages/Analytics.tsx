@@ -40,10 +40,12 @@ import {
   subMonths,
   subWeeks,
 } from "date-fns";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
 import {
+  getCachedBudgetCategories,
+  getCachedSavingsGoals,
+  getCachedSubscriptions,
   getBudgetAmountInCurrency,
   getSavingsGoalAmountsInCurrency,
   getSubscriptionAmountInCurrency,
@@ -52,6 +54,7 @@ import {
   listSubscriptions,
 } from "../lib/finance";
 import {
+  getCachedTransactions,
   getTransactionAmountInCurrency,
   getTransactionAmountInInterval,
   listTransactions,
@@ -69,17 +72,23 @@ export default function Analytics() {
   const { user } = useAuth();
   const { t, localizeCategory } = useI18n();
   const currency = useUserCurrency();
+  const cachedTransactions = user ? getCachedTransactions(user.id) : null;
+  const cachedBudgetCategories = user ? getCachedBudgetCategories(user.id) : null;
+  const cachedGoals = user ? getCachedSavingsGoals(user.id) : null;
+  const cachedSubscriptions = user ? getCachedSubscriptions(user.id) : null;
   const [overviewPeriod, setOverviewPeriod] = useState<"week" | "month" | "year">("month");
   const [distributionPeriod, setDistributionPeriod] = useState<"week" | "month" | "year">("month");
   const [trendPeriod, setTrendPeriod] = useState<"6m" | "12m" | "all">("12m");
   const [spendingPeriod, setSpendingPeriod] = useState<"14d" | "30d" | "90d">("14d");
   const [budgetPeriod, setBudgetPeriod] = useState<"1m" | "3m" | "6m" | "12m" | "all">("6m");
   const [categoryTrendPeriod, setCategoryTrendPeriod] = useState<"3m" | "6m" | "12m">("6m");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>([]);
-  const [goals, setGoals] = useState<SavingsGoal[]>([]);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>(() => cachedTransactions ?? []);
+  const [budgetCategories, setBudgetCategories] = useState<BudgetCategory[]>(() => cachedBudgetCategories ?? []);
+  const [goals, setGoals] = useState<SavingsGoal[]>(() => cachedGoals ?? []);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() => cachedSubscriptions ?? []);
+  const [isLoading, setIsLoading] = useState(
+    () => !(cachedTransactions || cachedBudgetCategories || cachedGoals || cachedSubscriptions),
+  );
 
   const { allTransactions: plaidRawTxns } = usePlaidData();
 
@@ -104,9 +113,18 @@ export default function Analytics() {
     }
 
     let isMounted = true;
+    const cachedCategories = getCachedBudgetCategories(user.id);
+
+    if (cachedTransactions) setTransactions(cachedTransactions);
+    if (cachedCategories) setBudgetCategories(cachedCategories);
+    if (cachedGoals) setGoals(cachedGoals);
+    if (cachedSubscriptions) setSubscriptions(cachedSubscriptions);
+    if (cachedTransactions || cachedCategories || cachedGoals || cachedSubscriptions) {
+      setIsLoading(false);
+    }
 
     const loadData = async () => {
-      setIsLoading(true);
+      setIsLoading(!(cachedTransactions || cachedCategories || cachedGoals || cachedSubscriptions));
       try {
         const [transactionData, categoryData, goalData, subscriptionData] = await Promise.all([
           listTransactions(user.id),
@@ -139,7 +157,9 @@ export default function Analytics() {
       }
     };
 
-    loadData();
+    if (!(cachedTransactions || cachedCategories || cachedGoals || cachedSubscriptions)) {
+      loadData();
+    }
 
     const reload = () => {
       loadData();
@@ -440,7 +460,6 @@ export default function Analytics() {
   const trackedTrendCategories = topSpendingCategories;
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div className="bg-card rounded-xl p-4 shadow-sm border border-border">
           <div className="flex flex-wrap items-center gap-3">
@@ -831,7 +850,5 @@ export default function Analytics() {
           </>
         )}
       </div>
-    </Layout>
   );
 }
-

@@ -23,13 +23,15 @@ import {
   PiggyBank,
 } from "lucide-react";
 import { endOfMonth, isWithinInterval, startOfMonth } from "date-fns";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
 import {
   createBudgetCategory,
   createGoalContribution,
   createSavingsGoal,
+  getCachedBudgetCategories,
+  getCachedGoalContributions,
+  getCachedSavingsGoals,
   getBudgetAmountInCurrency,
   getGoalContributionAmountInCurrency,
   getSavingsGoalAmountsInCurrency,
@@ -43,7 +45,7 @@ import {
   updateBudgetCategory,
   updateSavingsGoal,
 } from "../lib/finance";
-import { getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
+import { getCachedTransactions, getTransactionAmountInCurrency, listTransactions, parseTransactionDate } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { BudgetCategory, GoalContribution, SavingsGoal } from "../types/finance";
@@ -91,6 +93,7 @@ export default function BudgetGoals() {
   const [categories, setCategories] = useState<BudgetCategory[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [goalContributions, setGoalContributions] = useState<Record<string, GoalContribution[]>>({});
+  const [loadedContributionGoalIds, setLoadedContributionGoalIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [editingGoal, setEditingGoal] = useState<string | null>(null);
   const [goalName, setGoalName] = useState("");
@@ -155,9 +158,29 @@ export default function BudgetGoals() {
     }
 
     let isMounted = true;
+    const cachedGoals = getCachedSavingsGoals(user.id);
+    const cachedCategories = getCachedBudgetCategories(user.id);
+    const cachedTransactions = getCachedTransactions(user.id);
+    const cachedContributionEntries = (cachedGoals ?? [])
+      .map((goal) => [goal.id, getCachedGoalContributions(user.id, goal.id)] as const)
+      .filter((entry): entry is readonly [string, GoalContribution[]] => Array.isArray(entry[1]));
+
+    if (cachedGoals) setGoals(cachedGoals);
+    if (cachedCategories) setCategories(cachedCategories);
+    if (cachedTransactions) setTransactions(cachedTransactions);
+    if (cachedContributionEntries.length > 0) {
+      setGoalContributions(Object.fromEntries(cachedContributionEntries));
+      setLoadedContributionGoalIds(new Set(cachedContributionEntries.map(([goalId]) => goalId)));
+    }
+    if (cachedGoals || cachedCategories || cachedTransactions) {
+      setIsLoading(false);
+    }
+
+    const missingCachedContributions =
+      cachedGoals?.some((goal) => !getCachedGoalContributions(user.id, goal.id)) ?? false;
 
     const loadData = async (showLoading = true) => {
-      if (showLoading) {
+      if (showLoading && !(cachedGoals || cachedCategories || cachedTransactions)) {
         setIsLoading(true);
       }
 
@@ -180,6 +203,7 @@ export default function BudgetGoals() {
           goalData.map(async (goal) => [goal.id, await listGoalContributions(user.id, goal.id)] as const),
         );
         setGoalContributions(Object.fromEntries(contributionEntries));
+        setLoadedContributionGoalIds(new Set(goalData.map((goal) => goal.id)));
       } finally {
         if (isMounted && showLoading) {
           setIsLoading(false);
@@ -187,7 +211,11 @@ export default function BudgetGoals() {
       }
     };
 
-    loadData();
+    if (!(cachedGoals || cachedCategories || cachedTransactions)) {
+      loadData();
+    } else if (missingCachedContributions) {
+      loadData(false);
+    }
 
     const reload = () => {
       loadData(false);
@@ -215,6 +243,7 @@ export default function BudgetGoals() {
       goalData.map(async (goal) => [goal.id, await listGoalContributions(user.id, goal.id)] as const),
     );
     setGoalContributions(Object.fromEntries(contributionEntries));
+    setLoadedContributionGoalIds(new Set(goalData.map((goal) => goal.id)));
   };
 
   const categoriesWithSpent = useMemo<BudgetCategoryWithSpent[]>(() => {
@@ -563,7 +592,6 @@ export default function BudgetGoals() {
   };
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <div className="grid md:grid-cols-2 gap-4">
           <div className="bg-primary text-white rounded-xl p-6">
@@ -771,7 +799,9 @@ export default function BudgetGoals() {
                                 {t("budgetGoalsPage.contribute")}
                               </button>
                             </div>
-                            {(goalContributions[goal.id] ?? []).length === 0 ? (
+                            {!loadedContributionGoalIds.has(goal.id) ? (
+                              <div className="text-xs text-muted-foreground">{t("budgetGoalsPage.loading")}</div>
+                            ) : (goalContributions[goal.id] ?? []).length === 0 ? (
                               <div className="text-xs text-muted-foreground">{t("budgetGoalsPage.noContributions")}</div>
                             ) : (
                               <div className="space-y-1">
@@ -1283,6 +1313,5 @@ export default function BudgetGoals() {
           </div>
         ) : null}
       </div>
-    </Layout>
   );
 }

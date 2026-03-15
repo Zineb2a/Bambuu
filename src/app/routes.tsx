@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router";
+import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import Expenses from "./pages/Expenses";
 import Income from "./pages/Income";
@@ -38,44 +39,49 @@ export const router = createBrowserRouter([
     Component: AuthRoute,
   },
   {
-    path: "/",
-    element: <ProtectedRoute><Home /></ProtectedRoute>,
-  },
-  {
-    path: "/expenses",
-    element: <ProtectedRoute><Expenses /></ProtectedRoute>,
-  },
-  {
-    path: "/income",
-    element: <ProtectedRoute><Income /></ProtectedRoute>,
-  },
-  {
-    path: "/budget-goals",
-    element: <ProtectedRoute><BudgetGoals /></ProtectedRoute>,
-  },
-  {
-    path: "/analytics",
-    element: <ProtectedRoute><Analytics /></ProtectedRoute>,
-  },
-  {
-    path: "/transactions",
-    element: <ProtectedRoute><Transactions /></ProtectedRoute>,
-  },
-  {
-    path: "/recurring",
-    element: <ProtectedRoute><RecurringTransactions /></ProtectedRoute>,
-  },
-  {
-    path: "/investments",
-    element: <ProtectedRoute><Investments /></ProtectedRoute>,
-  },
-  {
-    path: "/subscriptions",
-    element: <ProtectedRoute><Subscriptions /></ProtectedRoute>,
-  },
-  {
-    path: "/settings",
-    element: <ProtectedRoute><Settings /></ProtectedRoute>,
+    element: <ProtectedRoute><Layout /></ProtectedRoute>,
+    children: [
+      {
+        path: "/",
+        element: <Home />,
+      },
+      {
+        path: "/expenses",
+        element: <Expenses />,
+      },
+      {
+        path: "/income",
+        element: <Income />,
+      },
+      {
+        path: "/budget-goals",
+        element: <BudgetGoals />,
+      },
+      {
+        path: "/analytics",
+        element: <Analytics />,
+      },
+      {
+        path: "/transactions",
+        element: <Transactions />,
+      },
+      {
+        path: "/recurring",
+        element: <RecurringTransactions />,
+      },
+      {
+        path: "/investments",
+        element: <Investments />,
+      },
+      {
+        path: "/subscriptions",
+        element: <Subscriptions />,
+      },
+      {
+        path: "/settings",
+        element: <Settings />,
+      },
+    ],
   },
   // Redirect old routes to new combined page
   {

@@ -19,6 +19,8 @@ interface TransactionRow {
   created_at: string;
 }
 
+const transactionListCache = new Map<string, Transaction[]>();
+
 const transactionSelect = `
   id,
   user_id,
@@ -184,7 +186,13 @@ export async function listTransactions(userId: string) {
     throw error;
   }
 
-  return (data ?? []).map((row) => mapTransaction(row as TransactionRow));
+  const mapped = (data ?? []).map((row) => mapTransaction(row as TransactionRow));
+  transactionListCache.set(userId, mapped);
+  return mapped;
+}
+
+export function getCachedTransactions(userId: string) {
+  return transactionListCache.get(userId) ?? null;
 }
 
 export async function createTransaction(userId: string, input: TransactionInput) {

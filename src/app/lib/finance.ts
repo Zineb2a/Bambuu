@@ -66,6 +66,15 @@ interface SubscriptionRow {
   created_at: string;
 }
 
+const savingsGoalsCache = new Map<string, SavingsGoal[]>();
+const budgetCategoriesCache = new Map<string, BudgetCategory[]>();
+const subscriptionsCache = new Map<string, Subscription[]>();
+const goalContributionsCache = new Map<string, GoalContribution[]>();
+
+function getGoalContributionsCacheKey(userId: string, goalId: string) {
+  return `${userId}:${goalId}`;
+}
+
 const savingsGoalSelect = `
   id,
   user_id,
@@ -193,7 +202,13 @@ export async function listSavingsGoals(userId: string) {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map((row) => mapSavingsGoal(row as SavingsGoalRow));
+  const mapped = (data ?? []).map((row) => mapSavingsGoal(row as SavingsGoalRow));
+  savingsGoalsCache.set(userId, mapped);
+  return mapped;
+}
+
+export function getCachedSavingsGoals(userId: string) {
+  return savingsGoalsCache.get(userId) ?? null;
 }
 
 export async function createSavingsGoal(userId: string, input: SavingsGoalInput) {
@@ -290,7 +305,13 @@ export async function listGoalContributions(userId: string, goalId: string) {
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []).map((row) => mapGoalContribution(row as GoalContributionRow));
+  const mapped = (data ?? []).map((row) => mapGoalContribution(row as GoalContributionRow));
+  goalContributionsCache.set(getGoalContributionsCacheKey(userId, goalId), mapped);
+  return mapped;
+}
+
+export function getCachedGoalContributions(userId: string, goalId: string) {
+  return goalContributionsCache.get(getGoalContributionsCacheKey(userId, goalId)) ?? null;
 }
 
 async function recalculateGoalCurrentAmount(userId: string, goalId: string) {
@@ -414,7 +435,13 @@ export async function listBudgetCategories(userId: string) {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map((row) => mapBudgetCategory(row as BudgetCategoryRow));
+  const mapped = (data ?? []).map((row) => mapBudgetCategory(row as BudgetCategoryRow));
+  budgetCategoriesCache.set(userId, mapped);
+  return mapped;
+}
+
+export function getCachedBudgetCategories(userId: string) {
+  return budgetCategoriesCache.get(userId) ?? null;
 }
 
 export async function createBudgetCategory(userId: string, input: BudgetCategoryInput) {
@@ -482,7 +509,13 @@ export async function listSubscriptions(userId: string) {
     .order("created_at", { ascending: true });
 
   if (error) throw error;
-  return (data ?? []).map((row) => mapSubscription(row as SubscriptionRow));
+  const mapped = (data ?? []).map((row) => mapSubscription(row as SubscriptionRow));
+  subscriptionsCache.set(userId, mapped);
+  return mapped;
+}
+
+export function getCachedSubscriptions(userId: string) {
+  return subscriptionsCache.get(userId) ?? null;
 }
 
 export async function createSubscription(userId: string, input: SubscriptionInput) {

@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import { getUserSettings } from "../lib/settings";
+import { getCachedUserSettings, getUserSettings } from "../lib/settings";
 import { useAuth } from "../providers/AuthProvider";
 
 export function useUserCurrency() {
   const { user } = useAuth();
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(() => (user ? getCachedUserSettings(user.id)?.currency ?? "USD" : "USD"));
 
   useEffect(() => {
     if (!user) {
       setCurrency("USD");
       return;
+    }
+
+    const cachedSettings = getCachedUserSettings(user.id);
+    if (cachedSettings) {
+      setCurrency(cachedSettings.currency);
     }
 
     let isMounted = true;
@@ -27,7 +32,9 @@ export function useUserCurrency() {
       }
     };
 
-    loadCurrency();
+    if (!cachedSettings) {
+      loadCurrency();
+    }
 
     const handleSettingsUpdated = () => {
       loadCurrency();

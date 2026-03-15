@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
 import {
   Filter,
   Search,
@@ -16,12 +15,12 @@ import {
   Repeat,
   Trash2,
 } from "lucide-react";
-import Layout from "../components/Layout";
 import DateFilter from "../components/DateFilter";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import {
   formatTransactionDate,
+  getCachedTransactions,
   getTransactionAmountInCurrency,
   listTransactionOccurrencesInInterval,
   listTransactions,
@@ -82,6 +81,7 @@ export default function Transactions() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [sortOption, setSortOption] = useState<string>("date_desc");
+  const [showRecurringOnly, setShowRecurringOnly] = useState(false);
 
   const { allTransactions: plaidRawTxns } = usePlaidData();
   const [plaidOverridesVersion, setPlaidOverridesVersion] = useState(0);
@@ -217,9 +217,15 @@ export default function Transactions() {
     }
 
     let isMounted = true;
+    const cachedTransactions = getCachedTransactions(user.id);
+
+    if (cachedTransactions) {
+      setAllTransactions(cachedTransactions);
+      setIsLoading(false);
+    }
 
     const loadTransactions = async () => {
-      setIsLoading(true);
+      setIsLoading(!cachedTransactions);
 
       try {
         const data = await listTransactions(user.id);
@@ -233,7 +239,9 @@ export default function Transactions() {
       }
     };
 
-    loadTransactions();
+    if (!cachedTransactions) {
+      loadTransactions();
+    }
 
     const handleTransactionsChanged = () => {
       loadTransactions();
@@ -296,6 +304,10 @@ export default function Transactions() {
   const filteredTransactions = useMemo(
     () =>
       transactionItems.filter(({ transaction, occurredOn }) => {
+        if (showRecurringOnly && !transaction.isRecurring) {
+          return false;
+        }
+
         if (
           searchQuery &&
           !transaction.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -360,6 +372,7 @@ export default function Transactions() {
       selectedDate,
       selectedDateRange,
       selectedType,
+      showRecurringOnly,
       transactionItems,
       currency,
     ]
@@ -428,9 +441,11 @@ export default function Transactions() {
     setMaxAmount("");
     setSearchQuery("");
     setSelectedDate(undefined);
+    setShowRecurringOnly(false);
   };
 
   const hasActiveFilters =
+    showRecurringOnly ||
     selectedType !== "all" ||
     selectedCategory !== "all" ||
     selectedDateRange !== "all" ||
@@ -580,7 +595,6 @@ export default function Transactions() {
   };
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="flex flex-col md:flex-row md:items-center md:gap-4 mb-6">
           <div className="relative flex-1 mb-3 md:mb-0">
@@ -632,16 +646,25 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Recurring Transactions link and Filters button on the same line */}
+        {/* Recurring Transactions toggle and Filters button on the same line */}
         <div className="flex flex-col md:flex-row md:items-center gap-2 mb-6">
           <div className="flex items-center gap-2 flex-1">
-            <Link
-              to="/recurring"
-              className="flex items-center justify-center gap-2 px-4 py-3 bg-card border border-border rounded-lg hover:bg-secondary transition-colors"
+            <button
+              type="button"
+              onClick={() => setShowRecurringOnly((value) => !value)}
+              className={`flex items-center justify-center gap-2 px-4 py-3 border rounded-lg transition-colors ${
+                showRecurringOnly
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card border-border hover:bg-secondary"
+              }`}
             >
-              <Repeat className="size-5 text-primary" />
-              <span>{t("transactions.recurringTransactions")}</span>
-            </Link>
+              <Repeat className={`size-5 ${showRecurringOnly ? "text-primary-foreground" : "text-primary"}`} />
+              <span>
+                {showRecurringOnly
+                  ? `${t("common.all")} ${t("transactions.transactionsSuffix")}`
+                  : t("transactions.recurringTransactions")}
+              </span>
+            </button>
           </div>
           <div className="flex justify-end flex-1">
             <button
@@ -847,6 +870,11 @@ export default function Transactions() {
         </div>
 
         <div className="space-y-3">
+          {showRecurringOnly ? (
+            <div className="text-sm text-muted-foreground">
+              {t("transactions.recurringTransactions")}
+            </div>
+          ) : null}
           {isLoading ? (
             <div className="bg-card border border-border rounded-xl p-12 text-center">
               <h3 className="mb-2">{t("transactions.loadingTitle")}</h3>
@@ -1078,6 +1106,5 @@ export default function Transactions() {
           </div>
         ) : null}
       </div>
-    </Layout>
   );
 }

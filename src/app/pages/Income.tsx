@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Briefcase, DollarSign, TrendingUp } from "lucide-react";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
-import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
+import { formatTransactionDate, getCachedTransactions, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
@@ -23,9 +22,15 @@ export default function Income() {
     }
 
     let isMounted = true;
+    const cachedTransactions = getCachedTransactions(user.id);
+
+    if (cachedTransactions) {
+      setIncomeStreams(cachedTransactions.filter((transaction) => transaction.type === "income"));
+      setIsLoading(false);
+    }
 
     const loadIncome = async () => {
-      setIsLoading(true);
+      setIsLoading(!cachedTransactions);
       try {
         const data = await listTransactions(user.id);
         if (isMounted) {
@@ -38,7 +43,9 @@ export default function Income() {
       }
     };
 
-    loadIncome();
+    if (!cachedTransactions) {
+      loadIncome();
+    }
     window.addEventListener("transactionsChanged", loadIncome);
 
     return () => {
@@ -53,7 +60,6 @@ export default function Income() {
   );
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="bg-gradient-to-br from-primary to-[#52b788] text-white rounded-2xl p-6 mb-6 shadow-lg">
           <div className="flex items-center gap-2 mb-2 opacity-90">
@@ -112,6 +118,5 @@ export default function Income() {
           </div>
         </div>
       </div>
-    </Layout>
   );
 }

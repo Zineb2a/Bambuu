@@ -10,12 +10,12 @@ import {
   TrendingUp,
   ShoppingCart,
 } from "lucide-react";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
 import {
   createTransaction,
   formatTransactionDate,
+  getCachedTransactions,
   getTransactionAmountInCurrency,
   listTransactions,
   removeTransaction,
@@ -53,9 +53,15 @@ export default function RecurringTransactions() {
     }
 
     let isMounted = true;
+    const cachedTransactions = getCachedTransactions(user.id);
+
+    if (cachedTransactions) {
+      setTransactions(cachedTransactions.filter((transaction) => transaction.isRecurring));
+      setIsLoading(false);
+    }
 
     const loadRecurring = async () => {
-      setIsLoading(true);
+      setIsLoading(!cachedTransactions);
       try {
         const data = await listTransactions(user.id);
         if (isMounted) {
@@ -68,7 +74,9 @@ export default function RecurringTransactions() {
       }
     };
 
-    loadRecurring();
+    if (!cachedTransactions) {
+      loadRecurring();
+    }
     window.addEventListener("transactionsChanged", loadRecurring);
 
     return () => {
@@ -237,7 +245,6 @@ export default function RecurringTransactions() {
   );
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <button
           onClick={() => {
@@ -388,6 +395,5 @@ export default function RecurringTransactions() {
           </div>
         ) : null}
       </div>
-    </Layout>
   );
 }

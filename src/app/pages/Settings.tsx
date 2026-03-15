@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { usePlaidLink } from "react-plaid-link";
-import Layout from "../components/Layout";
 import { supabase } from "../../lib/supabase";
 import { useAuth } from "../providers/AuthProvider";
 import { BRAND_LOGO_SRC } from "../lib/branding";
@@ -606,7 +605,6 @@ export default function Settings() {
   };
 
   return (
-    <Layout>
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
           <h2>{t("settingsPage.settings")}</h2>
@@ -1291,7 +1289,5 @@ export default function Settings() {
           <p className="text-sm text-muted-foreground">{t("settingsPage.footer")}</p>
         </div>
       </div>
-    </Layout>
   );
 }
-

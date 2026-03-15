@@ -40,6 +40,8 @@ interface LinkedCardRow {
   created_at: string;
 }
 
+const settingsCache = new Map<string, UserSettings>();
+
 function mapProfile(row: ProfileRow, email: string | null): UserProfile {
   return {
     id: row.id,
@@ -143,7 +145,7 @@ export async function getUserSettings(userId: string) {
   if (error) throw error;
 
   if (!data) {
-    return {
+    const fallback = {
       userId,
       language: "English",
       currency: "USD",
@@ -156,9 +158,17 @@ export async function getUserSettings(userId: string) {
       savingsMilestones: true,
       onboardingCompleted: false,
     } satisfies UserSettings;
+    settingsCache.set(userId, fallback);
+    return fallback;
   }
 
-  return mapSettings(data as UserSettingsRow);
+  const mapped = mapSettings(data as UserSettingsRow);
+  settingsCache.set(userId, mapped);
+  return mapped;
+}
+
+export function getCachedUserSettings(userId: string) {
+  return settingsCache.get(userId) ?? null;
 }
 
 export async function updateUserSettings(userId: string, input: UserSettingsInput) {
@@ -184,7 +194,9 @@ export async function updateUserSettings(userId: string, input: UserSettingsInpu
     .single();
 
   if (error) throw error;
-  return mapSettings(data as UserSettingsRow);
+  const mapped = mapSettings(data as UserSettingsRow);
+  settingsCache.set(userId, mapped);
+  return mapped;
 }
 
 export async function listLinkedCards(userId: string) {

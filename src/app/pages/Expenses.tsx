@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Filter, Search } from "lucide-react";
-import Layout from "../components/Layout";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency, formatCurrencyWithCode } from "../lib/currency";
-import { formatTransactionDate, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
+import { formatTransactionDate, getCachedTransactions, getTransactionAmountInCurrency, listTransactions } from "../lib/transactions";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { Transaction } from "../types/transactions";
@@ -41,9 +40,15 @@ export default function Expenses() {
     }
 
     let isMounted = true;
+    const cachedTransactions = getCachedTransactions(user.id);
+
+    if (cachedTransactions) {
+      setTransactions(cachedTransactions.filter((transaction) => transaction.type === "expense"));
+      setIsLoading(false);
+    }
 
     const loadExpenses = async () => {
-      setIsLoading(true);
+      setIsLoading(!cachedTransactions);
       try {
         const data = await listTransactions(user.id);
         if (isMounted) {
@@ -56,7 +61,9 @@ export default function Expenses() {
       }
     };
 
-    loadExpenses();
+    if (!cachedTransactions) {
+      loadExpenses();
+    }
     window.addEventListener("transactionsChanged", loadExpenses);
 
     return () => {
@@ -80,7 +87,6 @@ export default function Expenses() {
   );
 
   return (
-    <Layout>
       <div className="max-w-7xl mx-auto px-6 py-6">
         <div className="relative mb-6">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -138,6 +144,5 @@ export default function Expenses() {
           )}
         </div>
       </div>
-    </Layout>
   );
 }

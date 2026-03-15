@@ -1,24 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Edit2, X, Calendar, DollarSign, AlertCircle, Sparkles, CheckCircle } from "lucide-react";
-import Layout from "../components/Layout";
 import StudentDiscountDetectorCard from "../components/StudentDiscountDetectorCard";
 import { useUserCurrency } from "../hooks/useUserCurrency";
 import { formatCurrency } from "../lib/currency";
 import { BRAND_LOGO_SRC } from "../lib/branding";
 import {
   createSubscription,
+  getCachedSubscriptions,
   getSubscriptionAmountInCurrency,
   listSubscriptions,
   removeSubscription,
   updateSubscription,
 } from "../lib/finance";
-import { getUserSettings } from "../lib/settings";
+import { getCachedUserSettings, getUserSettings } from "../lib/settings";
 import { detectStudentDiscounts } from "../lib/studentDiscounts";
 import { useAuth } from "../providers/AuthProvider";
 import { useI18n } from "../providers/I18nProvider";
 import type { Subscription } from "../types/finance";
 import type { Transaction } from "../types/transactions";
-import { listTransactions } from "../lib/transactions";
+import { getCachedTransactions, listTransactions } from "../lib/transactions";
 import {
   normalizeMerchantName,
   type StudentDiscountOpportunity,
@@ -89,9 +89,19 @@ export default function Subscriptions() {
     }
 
     let isMounted = true;
+    const cachedSubscriptions = getCachedSubscriptions(user.id);
+    const cachedTransactions = getCachedTransactions(user.id);
+    const cachedSettings = getCachedUserSettings(user.id);
+
+    if (cachedSubscriptions) setSubscriptions(cachedSubscriptions);
+    if (cachedTransactions) setTransactions(cachedTransactions);
+    if (cachedSettings) setUserCountry(cachedSettings.country ?? "US");
+    if (cachedSubscriptions || cachedTransactions || cachedSettings) {
+      setIsLoading(false);
+    }
 
     const loadSubscriptions = async () => {
-      setIsLoading(true);
+      setIsLoading(!(cachedSubscriptions || cachedTransactions || cachedSettings));
 
       try {
         const [subscriptionData, transactionData, settings] = await Promise.all([
@@ -111,7 +121,9 @@ export default function Subscriptions() {
       }
     };
 
-    loadSubscriptions();
+    if (!(cachedSubscriptions || cachedTransactions || cachedSettings)) {
+      loadSubscriptions();
+    }
 
     const reload = () => {
       loadSubscriptions();
@@ -306,7 +318,6 @@ export default function Subscriptions() {
   };
 
   return (
-    <Layout>
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
@@ -763,6 +774,5 @@ export default function Subscriptions() {
           </div>
         ) : null}
       </div>
-    </Layout>
   );
 }
