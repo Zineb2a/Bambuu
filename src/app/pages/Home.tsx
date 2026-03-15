@@ -625,51 +625,63 @@ export default function Home() {
               ) : null}
             </div>
 
-            <div className="relative flex-1 w-16 min-h-[400px] rounded-full overflow-hidden bg-[#E8D7B8] shadow-inner border-2 border-[#D4C5A9]">
-              <div className="absolute top-[15%] w-full h-2 bg-[#8B7355] opacity-40"></div>
-              <div className="absolute top-[30%] w-full h-2 bg-[#8B7355] opacity-40"></div>
-              <div className="absolute top-[45%] w-full h-2 bg-[#8B7355] opacity-40"></div>
-              <div className="absolute top-[60%] w-full h-2 bg-[#8B7355] opacity-40"></div>
-              <div className="absolute top-[75%] w-full h-2 bg-[#8B7355] opacity-40"></div>
-              <div className="absolute top-[90%] w-full h-2 bg-[#8B7355] opacity-40"></div>
+            <div className="relative flex-1 w-16 min-h-[400px] overflow-visible">
+              <div className="absolute bottom-0 left-1/2 h-full w-16 -translate-x-1/2 rounded-[999px] bg-[#eef1e6] shadow-inner border border-[#d8ddcc]" />
+
+              <div className="absolute bottom-0 left-1/2 h-full w-8 -translate-x-1/2 rounded-[999px] border border-[#5b8d3a] bg-gradient-to-b from-[#a8d86d] via-[#78b94f] to-[#4d8731] shadow-[inset_-6px_0_8px_rgba(255,255,255,0.28),inset_8px_0_12px_rgba(0,0,0,0.14)]">
+                <div className="absolute inset-y-0 left-[42%] w-[2px] bg-white/20" />
+                <div className="absolute left-0 right-0 top-[12%] h-[6px] rounded-full bg-[#628d3e]" />
+                <div className="absolute left-0 right-0 top-[28%] h-[6px] rounded-full bg-[#628d3e]" />
+                <div className="absolute left-0 right-0 top-[44%] h-[6px] rounded-full bg-[#628d3e]" />
+                <div className="absolute left-0 right-0 top-[60%] h-[6px] rounded-full bg-[#628d3e]" />
+                <div className="absolute left-0 right-0 top-[76%] h-[6px] rounded-full bg-[#628d3e]" />
+                <div className="absolute left-0 right-0 top-[92%] h-[6px] rounded-full bg-[#628d3e]" />
+              </div>
+
+              <div className="absolute left-1/2 top-[10%] -translate-x-[18px] -translate-y-1/2 rotate-[-28deg]">
+                <svg width="70" height="42" viewBox="0 0 100 60" className="drop-shadow-sm">
+                  <path d="M95 50C77 48 62 43 46 31C32 20 20 11 6 7C14 23 27 35 43 43C59 51 76 54 95 50Z" fill="#4b9847" />
+                  <path d="M87 46C71 43 57 37 43 25" stroke="#a8df8c" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              <div className="absolute left-1/2 top-[34%] translate-x-[12px] -translate-y-1/2 rotate-[24deg]">
+                <svg width="72" height="44" viewBox="0 0 100 60" className="drop-shadow-sm">
+                  <path d="M6 52C24 49 39 43 55 31C69 20 81 11 95 7C87 24 74 36 58 44C42 52 25 55 6 52Z" fill="#4f9f4c" />
+                  <path d="M14 47C30 43 44 37 58 25" stroke="#b4e79a" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+                </svg>
+              </div>
+
+              <div className="absolute left-1/2 top-[58%] -translate-x-[20px] -translate-y-1/2 rotate-[-24deg] opacity-90">
+                <svg width="64" height="38" viewBox="0 0 100 60" className="drop-shadow-sm">
+                  <path d="M95 50C77 48 62 43 46 31C32 20 20 11 6 7C14 23 27 35 43 43C59 51 76 54 95 50Z" fill="#58ab52" />
+                  <path d="M87 46C71 43 57 37 43 25" stroke="#c4efab" strokeWidth="2.3" fill="none" strokeLinecap="round" />
+                </svg>
+              </div>
 
               <div
-                className="absolute bottom-0 w-full bg-primary transition-all duration-700 ease-out"
-                style={{ height: `${savingsProgress}%` }}
-              ></div>
-
-              <div
-                className="absolute left-1/2 -translate-x-1/2 transition-all duration-700 ease-out"
-                style={{ bottom: `${Math.max(savingsProgress - 5, 0)}%` }}
+                className="absolute left-1/2 -translate-x-[58%] transition-all duration-700 ease-out"
+                style={{ bottom: `${Math.max(savingsProgress - 4, 0)}%` }}
               >
-                <div className="relative" style={{ width: "80px", height: "80px" }}>
-                  <svg viewBox="0 0 100 100" className="w-full h-full animate-bounce-subtle">
-                    <ellipse cx="20" cy="45" rx="12" ry="16" fill="#2d2d2d" transform="rotate(-20 20 45)" />
-                    <ellipse cx="80" cy="45" rx="12" ry="16" fill="#2d2d2d" transform="rotate(20 80 45)" />
-                    <ellipse cx="30" cy="75" rx="13" ry="18" fill="#2d2d2d" transform="rotate(-15 30 75)" />
-                    <ellipse cx="70" cy="75" rx="13" ry="18" fill="#2d2d2d" transform="rotate(15 70 75)" />
-                    <ellipse cx="50" cy="55" rx="28" ry="32" fill="#f0f0f0" />
-                    <circle cx="50" cy="30" r="22" fill="#f0f0f0" />
-                    <circle cx="35" cy="18" r="9" fill="#2d2d2d" />
-                    <circle cx="65" cy="18" r="9" fill="#2d2d2d" />
-                    <ellipse cx="42" cy="28" rx="7" ry="9" fill="#2d2d2d" transform="rotate(-15 42 28)" />
-                    <ellipse cx="58" cy="28" rx="7" ry="9" fill="#2d2d2d" transform="rotate(15 58 28)" />
-                    <circle cx="42" cy="28" r="3" fill="#ffffff" />
-                    <circle cx="58" cy="28" r="3" fill="#ffffff" />
-                    <ellipse cx="50" cy="36" rx="4" ry="3" fill="#2d2d2d" />
-                    <path d="M 45 38 Q 50 42 55 38" stroke="#2d2d2d" strokeWidth="2" fill="none" strokeLinecap="round" />
-                    <ellipse cx="50" cy="60" rx="12" ry="14" fill="#e8e8e8" opacity="0.4" />
+                <div className="relative h-[92px] w-[88px]">
+                  <svg viewBox="0 0 110 110" className="h-full w-full drop-shadow-md animate-climb-sway">
+                    <ellipse cx="30" cy="67" rx="13" ry="19" fill="#1f1f1f" transform="rotate(-28 30 67)" />
+                    <ellipse cx="77" cy="58" rx="13" ry="19" fill="#1f1f1f" transform="rotate(34 77 58)" />
+                    <ellipse cx="39" cy="96" rx="15" ry="19" fill="#1f1f1f" transform="rotate(-12 39 96)" />
+                    <ellipse cx="71" cy="93" rx="15" ry="19" fill="#1f1f1f" transform="rotate(18 71 93)" />
+                    <ellipse cx="56" cy="70" rx="28" ry="33" fill="#f6f2ea" />
+                    <circle cx="57" cy="34" r="23" fill="#f6f2ea" />
+                    <circle cx="41" cy="18" r="10" fill="#1f1f1f" />
+                    <circle cx="72" cy="18" r="10" fill="#1f1f1f" />
+                    <ellipse cx="48" cy="34" rx="7" ry="9" fill="#1f1f1f" transform="rotate(-12 48 34)" />
+                    <ellipse cx="65" cy="35" rx="7" ry="9" fill="#1f1f1f" transform="rotate(12 65 35)" />
+                    <circle cx="49" cy="35" r="2.4" fill="#ffffff" />
+                    <circle cx="65" cy="35" r="2.4" fill="#ffffff" />
+                    <ellipse cx="57" cy="44" rx="4.5" ry="3.2" fill="#1f1f1f" />
+                    <path d="M52 49 Q57 53 63 49" stroke="#1f1f1f" strokeWidth="2.2" fill="none" strokeLinecap="round" />
+                    <path d="M42 55 Q31 49 25 40" stroke="#1f1f1f" strokeWidth="6" fill="none" strokeLinecap="round" />
+                    <path d="M69 58 Q81 55 87 47" stroke="#1f1f1f" strokeWidth="6" fill="none" strokeLinecap="round" />
                   </svg>
-
-                  <style>{`
-                    @keyframes bounce-subtle {
-                      0%, 100% { transform: translateY(0px) rotate(-2deg); }
-                      50% { transform: translateY(-3px) rotate(2deg); }
-                    }
-                    .animate-bounce-subtle {
-                      animation: bounce-subtle 2s ease-in-out infinite;
-                    }
-                  `}</style>
                 </div>
               </div>
 
@@ -681,6 +693,16 @@ export default function Home() {
                   <div className="text-xs font-medium text-primary">{savingsProgress.toFixed(0)}%</div>
                 </div>
               </div>
+
+              <style>{`
+                @keyframes climb-sway {
+                  0%, 100% { transform: translateY(0px) rotate(-3deg); }
+                  50% { transform: translateY(-2px) rotate(3deg); }
+                }
+                .animate-climb-sway {
+                  animation: climb-sway 2.4s ease-in-out infinite;
+                }
+              `}</style>
             </div>
 
             <div className="mt-4 text-center">

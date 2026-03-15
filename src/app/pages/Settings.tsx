@@ -61,6 +61,38 @@ const emptyCard = {
   autoImport: true,
 };
 
+async function readOptimizedAvatar(file: File) {
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error("Unable to read the selected image."));
+      nextImage.src = imageUrl;
+    });
+
+    const maxDimension = 320;
+    const scale = Math.min(maxDimension / image.width, maxDimension / image.height, 1);
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext("2d");
+    if (!context) {
+      throw new Error("Unable to process the selected image.");
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 export default function Settings() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -173,17 +205,22 @@ export default function Settings() {
     setTimeout(() => setSavedNotification(""), 3000);
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setProfilePhoto(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setErrorNotification("");
+
+    try {
+      const optimizedAvatar = await readOptimizedAvatar(file);
+      setProfilePhoto(optimizedAvatar);
+    } catch (error) {
+      setErrorNotification(error instanceof Error ? error.message : t("settingsPage.failedSaveProfile"));
+    } finally {
+      e.target.value = "";
+    }
   };
 
   const handleSaveProfile = async () => {
