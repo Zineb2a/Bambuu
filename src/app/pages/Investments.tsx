@@ -37,6 +37,7 @@ import {
 import type { InvestmentPosition } from "../types/investments";
 
 type InvestmentType = "stock" | "crypto" | "etf" | "bond";
+type SuggestionTone = "info" | "warning" | "success";
 
 const COLORS = ["#A0C878", "#DDEB9D", "#8AB060", "#6B9440"];
 
@@ -106,6 +107,16 @@ export default function Investments() {
   const currentValue = portfolioWithTotals.reduce((sum, inv) => sum + inv.currentValue, 0);
   const totalGain = currentValue - totalInvested;
   const totalGainPercent = totalInvested > 0 ? ((totalGain / totalInvested) * 100).toFixed(2) : "0.00";
+  const typeExposure = {
+    stock: portfolioWithTotals.filter((i) => i.type === "stock").reduce((sum, i) => sum + i.currentValue, 0),
+    crypto: portfolioWithTotals.filter((i) => i.type === "crypto").reduce((sum, i) => sum + i.currentValue, 0),
+    etf: portfolioWithTotals.filter((i) => i.type === "etf").reduce((sum, i) => sum + i.currentValue, 0),
+    bond: portfolioWithTotals.filter((i) => i.type === "bond").reduce((sum, i) => sum + i.currentValue, 0),
+  };
+  const cryptoShare = currentValue > 0 ? (typeExposure.crypto / currentValue) * 100 : 0;
+  const etfShare = currentValue > 0 ? (typeExposure.etf / currentValue) * 100 : 0;
+  const bondShare = currentValue > 0 ? (typeExposure.bond / currentValue) * 100 : 0;
+  const largestTypeShare = currentValue > 0 ? (Math.max(...Object.values(typeExposure)) / currentValue) * 100 : 0;
 
   const portfolioData = [
     {
@@ -212,6 +223,107 @@ export default function Investments() {
       ],
     },
   ];
+
+  const smartSuggestions = useMemo(() => {
+    const suggestions: Array<{
+      title: string;
+      description: string;
+      tone: SuggestionTone;
+      icon: JSX.Element;
+    }> = [];
+
+    if (portfolioWithTotals.length === 0) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.emptyTitle"),
+        description: t("investmentsPage.suggestions.emptyDescription"),
+        tone: "info",
+        icon: <Lightbulb className="size-5" />,
+      });
+      suggestions.push({
+        title: t("investmentsPage.suggestions.startSmallTitle"),
+        description: t("investmentsPage.suggestions.startSmallDescription"),
+        tone: "success",
+        icon: <Target className="size-5" />,
+      });
+      return suggestions;
+    }
+
+    if (largestTypeShare >= 75) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.diversifyTitle"),
+        description: t("investmentsPage.suggestions.diversifyDescription", {
+          percent: largestTypeShare.toFixed(0),
+        }),
+        tone: "warning",
+        icon: <Shield className="size-5" />,
+      });
+    }
+
+    if (cryptoShare >= 25) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.cryptoTitle"),
+        description: t("investmentsPage.suggestions.cryptoDescription", {
+          percent: cryptoShare.toFixed(0),
+        }),
+        tone: "warning",
+        icon: <Zap className="size-5" />,
+      });
+    }
+
+    if (etfShare < 40) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.etfCoreTitle"),
+        description: t("investmentsPage.suggestions.etfCoreDescription"),
+        tone: "info",
+        icon: <PieChartIcon className="size-5" />,
+      });
+    }
+
+    if (bondShare === 0) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.stabilityTitle"),
+        description: t("investmentsPage.suggestions.stabilityDescription"),
+        tone: "info",
+        icon: <Shield className="size-5" />,
+      });
+    }
+
+    if (totalGain < 0) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.downturnTitle"),
+        description: t("investmentsPage.suggestions.downturnDescription"),
+        tone: "success",
+        icon: <TrendingDown className="size-5" />,
+      });
+    } else if (portfolioWithTotals.length > 0) {
+      suggestions.push({
+        title: t("investmentsPage.suggestions.rebalanceTitle"),
+        description: t("investmentsPage.suggestions.rebalanceDescription"),
+        tone: "success",
+        icon: <TrendingUp className="size-5" />,
+      });
+    }
+
+    return suggestions.slice(0, 3);
+  }, [bondShare, cryptoShare, etfShare, largestTypeShare, portfolioWithTotals.length, t, totalGain]);
+
+  const connectionProviders = [
+    "Coinbase",
+    "Binance",
+    "Wealthsimple",
+    "Robinhood",
+  ];
+
+  const getSuggestionClasses = (tone: SuggestionTone) => {
+    switch (tone) {
+      case "warning":
+        return "border-amber-200 bg-amber-50 text-amber-900";
+      case "success":
+        return "border-primary/20 bg-primary/5";
+      default:
+        return "border-border bg-muted/40";
+    }
+  };
 
   const resetInvestmentForm = () => {
     setNewInvestment({
@@ -328,6 +440,55 @@ export default function Investments() {
                 <div className={`text-2xl flex items-center gap-1 ${parseFloat(totalGainPercent) >= 0 ? "text-primary" : "text-destructive"}`}>
                   {parseFloat(totalGainPercent) >= 0 ? <ArrowUpRight className="size-5" /> : <ArrowDownRight className="size-5" />}
                   {totalGainPercent}%
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-6">
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="mb-4 flex items-center gap-2">
+                  <Lightbulb className="size-5 text-primary" />
+                  {t("investmentsPage.smartSuggestions")}
+                </h3>
+                <div className="space-y-3">
+                  {smartSuggestions.map((suggestion) => (
+                    <div
+                      key={suggestion.title}
+                      className={`rounded-xl border p-4 ${getSuggestionClasses(suggestion.tone)}`}
+                    >
+                      <div className="mb-2 flex items-center gap-2">
+                        {suggestion.icon}
+                        <div className="font-medium">{suggestion.title}</div>
+                      </div>
+                      <p className="text-sm text-muted-foreground">{suggestion.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-card border border-border rounded-xl p-6">
+                <h3 className="mb-4 flex items-center gap-2">
+                  <Wallet className="size-5 text-primary" />
+                  {t("investmentsPage.connectionsTitle")}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {t("investmentsPage.connectionsDescription")}
+                </p>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {connectionProviders.map((provider) => (
+                    <div
+                      key={provider}
+                      className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-3 text-sm"
+                    >
+                      <div className="font-medium">{provider}</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {t("investmentsPage.comingSoon")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-sm text-muted-foreground">
+                  {t("investmentsPage.connectionsNote")}
                 </div>
               </div>
             </div>

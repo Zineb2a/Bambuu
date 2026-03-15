@@ -440,6 +440,13 @@ export const fr = {
     currentValue: "Valeur actuelle",
     totalGainLoss: "Gain/Perte total",
     return: "Rendement",
+    smartSuggestions: "Suggestions intelligentes",
+    connectionsTitle: "Connexions portefeuilles et courtiers",
+    connectionsDescription:
+      "Préparez vos comptes d'investissement pour une future synchronisation. Les connexions en direct ne sont pas encore activées dans cette version.",
+    connectionsNote:
+      "Étape suivante : connecter les API des exchanges et courtiers pour actualiser automatiquement les positions et les soldes.",
+    comingSoon: "Bientôt disponible",
     portfolioDistribution: "Répartition du portefeuille",
     noInvestmentsYet: "Aucun investissement pour le moment",
     portfolioPerformance: "Performance du portefeuille",
@@ -490,6 +497,32 @@ export const fr = {
     purchasePricePlaceholder: "Prix d'achat par part ({{currency}})",
     currentPricePlaceholder: "Prix actuel par part ({{currency}})",
     saveInvestment: "Enregistrer l'investissement",
+    suggestions: {
+      emptyTitle: "Commencez avec un noyau simple",
+      emptyDescription:
+        "Un ETF large avec une petite contribution mensuelle est souvent un meilleur point de départ que plusieurs actifs choisis d'un coup.",
+      startSmallTitle: "Choisissez un montant régulier",
+      startSmallDescription:
+        "Choisissez un montant que vous pouvez investir chaque mois sans pression. La régularité compte plus qu'un gros départ.",
+      diversifyTitle: "Votre portefeuille est concentré",
+      diversifyDescription:
+        "Environ {{percent}} % de votre portefeuille est dans un seul type d'actif. Ajouter un deuxième ou troisième pilier peut réduire le risque.",
+      cryptoTitle: "L'exposition crypto est élevée",
+      cryptoDescription:
+        "La crypto représente environ {{percent}} % de votre portefeuille. Vous pouvez la limiter et construire une base ETF plus stable autour.",
+      etfCoreTitle: "Renforcez la base ETF",
+      etfCoreDescription:
+        "Les ETF peuvent servir de base à long terme et réduire le risque lié à un seul actif.",
+      stabilityTitle: "Ajoutez une couche de stabilité",
+      stabilityDescription:
+        "Une petite part d'obligations peut réduire la volatilité si vous voulez des variations plus douces dans le temps.",
+      downturnTitle: "Évitez les réactions de panique",
+      downturnDescription:
+        "Votre portefeuille est en baisse actuellement. Concentrez-vous sur la diversification et les contributions régulières avant des changements agressifs.",
+      rebalanceTitle: "Revoyez votre allocation",
+      rebalanceDescription:
+        "Vous avez des gains à protéger. Rééquilibrer régulièrement aide à garder un niveau de risque cohérent avec votre plan initial.",
+    },
     resources: {
       stocks: {
         title: "Que sont les actions ?",

@@ -438,6 +438,13 @@ export const en = {
     currentValue: "Current Value",
     totalGainLoss: "Total Gain/Loss",
     return: "Return",
+    smartSuggestions: "Smart Suggestions",
+    connectionsTitle: "Wallet & Broker Connections",
+    connectionsDescription:
+      "Prepare your investment accounts for future sync. Live connections are not enabled yet in this build.",
+    connectionsNote:
+      "Next step: connect exchange and broker APIs so holdings and balances can refresh automatically.",
+    comingSoon: "Coming soon",
     portfolioDistribution: "Portfolio Distribution",
     noInvestmentsYet: "No investments yet",
     portfolioPerformance: "Portfolio Performance",
@@ -487,6 +494,32 @@ export const en = {
     purchasePricePlaceholder: "Purchase price per share ({{currency}})",
     currentPricePlaceholder: "Current price per share ({{currency}})",
     saveInvestment: "Save Investment",
+    suggestions: {
+      emptyTitle: "Start with a simple core",
+      emptyDescription:
+        "A broad ETF plus a small monthly contribution is usually a stronger starting point than picking many assets at once.",
+      startSmallTitle: "Use a repeatable amount",
+      startSmallDescription:
+        "Choose an amount you can invest every month without stress. Consistency matters more than starting big.",
+      diversifyTitle: "Your portfolio is concentrated",
+      diversifyDescription:
+        "About {{percent}}% of your portfolio sits in one asset type. Adding a second or third core type can reduce risk.",
+      cryptoTitle: "Crypto exposure is high",
+      cryptoDescription:
+        "Crypto is about {{percent}}% of your portfolio. Consider limiting it and building a steadier ETF base around it.",
+      etfCoreTitle: "Build a stronger ETF base",
+      etfCoreDescription:
+        "ETFs can act as the core of a long-term portfolio and reduce single-asset risk.",
+      stabilityTitle: "Add a stability layer",
+      stabilityDescription:
+        "A small bond allocation can reduce volatility if you want smoother swings over time.",
+      downturnTitle: "Avoid panic changes",
+      downturnDescription:
+        "Your portfolio is down right now. Focus on diversification and regular contributions before making aggressive moves.",
+      rebalanceTitle: "Review your allocation",
+      rebalanceDescription:
+        "You have gains to protect. Rebalancing regularly helps keep risk aligned with your original plan.",
+    },
     resources: {
       stocks: {
         title: "What are Stocks?",
